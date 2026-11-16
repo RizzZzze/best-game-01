@@ -239,8 +239,17 @@ export function drawRelicIcon(ctx, relicId, x, y, r) {
     ctx.arc(x, y + r * 0.8, r * 0.16, 0, Math.PI * 2);
     ctx.fill();
   } else if (shape === 'extraSlot') {
-    const w = r * 0.7;
-    const gap = r * 0.22;
+    // Deret 5 kotak. Konteks besar (shop/ledger, r>=20) memakai proporsi
+    // lama yang muat di kartu/sel lebar; konteks kecil (mini-grid r=16,
+    // relic stack r=11) deret diskalakan agar tidak meluber keluar ±r
+    // dan menabrak sel/teks tetangga (temuan audit visual Fase 4).
+    let w = r * 0.7;
+    let gap = r * 0.22;
+    if (r < 20) {
+      const k = (r * 1.8) / (5 * w + 4 * gap);
+      w *= k;
+      gap *= k;
+    }
     const total = 5 * w + 4 * gap;
     for (let i = 0; i < 5; i += 1) {
       const sx = x - total / 2 + i * (w + gap);
