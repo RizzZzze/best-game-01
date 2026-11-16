@@ -28,3 +28,19 @@ export function marketChipText(daily) {
   if (!daily) return "TODAY'S MARKET: —";
   return `TODAY'S MARKET: ${DAY_THEMES[daily.themeIndex].name} ON DAY ${daily.day}`;
 }
+
+// Pratinjau Almanac of Borrowed Days: variasi pasar BESOK, dihitung dari
+// tanggal kalender besok. Tanpa efek angka — hanya tampil di title saat
+// Almanac tercatat di Ledger.
+export function tomorrowMarketFor(date = new Date()) {
+  const tomorrow = new Date(date);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return dailyMarketFor(tomorrow);
+}
+
+export function tomorrowChipText(daily) {
+  if (!daily) return 'TOMORROW: —';
+  // Format ringkas ('· DAY') agar chip muat di kolom kiri tanpa menabrak
+  // judul tengah (terverifikasi audit visual: format 'ON DAY' 20px meluber).
+  return `TOMORROW: ${DAY_THEMES[daily.themeIndex].name} · DAY ${daily.day}`;
+}

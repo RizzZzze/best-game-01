@@ -87,7 +87,8 @@ export class ParticleSystem {
   }
 
   // Partikel ambient tema: 'rain' (jatuh cepat), 'ember' (naik, berkelip),
-  // 'mote' (melayang lambat). Posisi awal dipilih pemanggil.
+  // 'mote' (melayang lambat), 'snow' (jatuh pelan, bergoyang), 'firefly'
+  // (kunang-kunang: mengembara pelan, berdenyut). Posisi awal dipilih pemanggil.
   spawnAmbient(kind, x, y, rng = Math.random, color = '#e8c890') {
     if (this.particles.length >= MAX_PARTICLES) return;
     const base = {
@@ -110,6 +111,25 @@ export class ParticleSystem {
         life: 2.5 + rng() * 1.5,
         maxLife: 4,
         radius: 1.5 + rng() * 2,
+      });
+    } else if (kind === 'snow') {
+      this.particles.push({
+        ...base,
+        vx: (rng() - 0.5) * 30,
+        vy: 40 + rng() * 30,
+        life: 6 + rng() * 3,
+        maxLife: 9,
+        radius: 1.5 + rng(),
+      });
+    } else if (kind === 'firefly') {
+      this.particles.push({
+        ...base,
+        vx: (rng() - 0.5) * 24,
+        vy: (rng() - 0.5) * 18,
+        life: 4 + rng() * 3,
+        maxLife: 7,
+        radius: 2 + rng(),
+        color: '#d8f28a',
       });
     } else {
       this.particles.push({
@@ -146,6 +166,16 @@ export class ParticleSystem {
         p.x += (p.vx + Math.sin(p.wobblePhase) * 10) * dt;
         p.y += p.vy * dt;
         if (p.y < -8) continue;
+      } else if (p.kind === 'snow') {
+        p.wobblePhase += dt * 1.5;
+        p.x += (p.vx + Math.sin(p.wobblePhase) * 16) * dt;
+        p.y += p.vy * dt;
+        if (p.y > 724) continue;
+      } else if (p.kind === 'firefly') {
+        p.wobblePhase += dt * 1.2;
+        p.x += (p.vx + Math.sin(p.wobblePhase) * 14) * dt;
+        p.y += (p.vy + Math.cos(p.wobblePhase * 0.8) * 10) * dt;
+        if (p.x < -8 || p.x > 1288 || p.y < -8 || p.y > 728) continue;
       } else {
         p.vy += 260 * dt;
         p.x += p.vx * dt;
@@ -224,6 +254,23 @@ export class ParticleSystem {
       } else if (p.kind === 'mote') {
         ctx.globalAlpha = alpha * 0.35;
         ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.kind === 'snow') {
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.kind === 'firefly') {
+        const pulse = 0.5 + 0.5 * Math.sin(p.wobblePhase * 2);
+        ctx.globalAlpha = alpha * 0.2 * pulse;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = alpha * (0.35 + 0.65 * pulse);
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();

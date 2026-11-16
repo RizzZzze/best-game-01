@@ -15,6 +15,10 @@ export function freshLedger() {
     regulars: {},
     bestRun: null,
     runsCompleted: 0,
+    // Stempel sejarah (roster Xora): hitungan market day (Mortar) dan
+    // skor run pertama (Receipt) — sekali tercatat, tidak pernah berubah.
+    marketStamps: 0,
+    firstRunScore: null,
   };
 }
 
@@ -46,7 +50,18 @@ export function loadLedger(storage = defaultStorage()) {
     const raw = storage.getItem(LEDGER_KEY);
     if (!raw) return freshLedger();
     const parsed = JSON.parse(raw);
-    return isValidLedger(parsed) ? parsed : freshLedger();
+    if (!isValidLedger(parsed)) return freshLedger();
+    // Normalisasi aditif: simpanan lama tanpa field baru tetap valid.
+    if (typeof parsed.marketStamps !== 'number') parsed.marketStamps = 0;
+    if (typeof parsed.firstRunScore !== 'number') parsed.firstRunScore = null;
+    for (const record of Object.values(parsed.regulars)) {
+      if (record && typeof record === 'object') {
+        if (typeof record.visits !== 'number') record.visits = 0;
+        if (typeof record.grudge !== 'boolean') record.grudge = false;
+        if (typeof record.coins !== 'number') record.coins = 0;
+      }
+    }
+    return parsed;
   } catch {
     return freshLedger();
   }
@@ -81,8 +96,12 @@ export function recordRelic(ledger, id) {
 }
 
 // Dipanggil tepat sekali saat sebuah run berakhir (menang atau kalah).
+// Run pertama juga menstempel skornya secara permanen (Receipt).
 export function recordRunEnd(ledger, { score, rank, day }) {
   if (!ledger) return;
+  if (ledger.runsCompleted === 0 && ledger.firstRunScore == null) {
+    ledger.firstRunScore = score;
+  }
   ledger.runsCompleted += 1;
   if (!ledger.bestRun || score > ledger.bestRun.score) {
     ledger.bestRun = { score, rank, day };

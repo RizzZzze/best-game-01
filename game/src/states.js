@@ -19,21 +19,19 @@
 // (Pecahan dari main.js, Fase 1 v3: pindah verbatim.)
 
 import {
-  COOL_CHARM_FRACTION,
   COOL_FRACTION,
   ELEMENT_BY_ID,
-  GOLD_STAR_SCORE,
-  HAGGLE_DISCOUNT,
   HAND_SIZE,
+  MARKET_DISCOUNT,
   NOTICE_DURATION_SEC,
   PERFECT_DAY_COINS,
   PERFECT_DAY_SCORE,
-  SHOP_MIN_PRICE,
   START_HEARTS,
-  STIR_CHARM_DRAW,
   STIR_DRAW,
+  TOOL_BUNDLE_CARDS,
   TOTAL_DAYS,
   UNLOCK_COPIES,
+  familiesForLedger,
   generateShopOffers,
   isElement,
   isUtility,
@@ -130,12 +128,24 @@ export function createState(seed = 1) {
     runNumber: (ledger.runsCompleted || 0) + 1,
     // Pool shop dibekukan pada hitungan Ledger saat run dimulai: relic
     // yang ditemukan di run ini membuka pool run BERIKUTNYA (sesuai
-    // brief), bukan shop di tengah run yang sama.
+    // brief), bukan shop di tengah run yang sama. Famili signature pun
+    // dibekukan dengan cara yang sama.
     ledgerCountAtRunStart: ledger.relics.length,
+    signatureFamilies: familiesForLedger(ledger),
     runNewRelics: [],
     runRegularVisits: 0,
     runNewRegulars: [],
     newLedgerArmed: false,
+    // Pelacakan efek roster per run: parade Pip sekali, bonus dendam
+    // lunas tertunda, market day Mortar tertunda, varian tema hari ini,
+    // dan bonus order Charter yang belum muncul hari ini.
+    paradeDone: false,
+    sealBonusPending: false,
+    mortarPending: false,
+    marketDayActive: false,
+    dayVariant: null,
+    bonusPending: 0,
+    fireflyTick: 0,
     audio: new AudioEngine(),
     particles: new ParticleSystem(),
     day: 1,
@@ -215,10 +225,23 @@ export function startNewRun(state, seed = null) {
   state.coinsEarned = 0;
   state.runNumber = ((state.ledger && state.ledger.runsCompleted) || 0) + 1;
   state.ledgerCountAtRunStart = state.ledger ? state.ledger.relics.length : 0;
+  state.signatureFamilies = familiesForLedger(state.ledger);
   state.runNewRelics = [];
   state.runRegularVisits = 0;
   state.runNewRegulars = [];
   state.newLedgerArmed = false;
+  state.paradeDone = false;
+  state.sealBonusPending = false;
+  state.mortarPending = false;
+  state.marketDayActive = false;
+  state.dayVariant = null;
+  state.bonusPending = 0;
+  state.fireflyTick = 0;
+  // Lapisan audio relic mati saat run baru (belum ada relic dimiliki).
+  if (state.audio) {
+    state.audio.setWhistleLayer(false);
+    state.audio.setStirVariant(false);
+  }
   state.introNotes = introNotesFor(1);
   resetCustomerIds();
   state.particles.clear();
@@ -247,7 +270,7 @@ function endRun(state) {
 // Kuota hari tercapai: bonus hari sempurna, lalu shop atau win.
 export function finishDay(state) {
   const perfect = state.lostToday === 0;
-  const perfectScore = PERFECT_DAY_SCORE + (state.ownedRelics.includes('goldStar') ? GOLD_STAR_SCORE : 0);
+  const perfectScore = PERFECT_DAY_SCORE;
   if (perfect) {
     state.score += perfectScore;
     state.coins += PERFECT_DAY_COINS;
@@ -266,9 +289,18 @@ export function finishDay(state) {
     state.rng,
     state.ledgerCountAtRunStart || 0,
   );
-  if (state.ownedRelics.includes('haggleCoin')) {
+  // Mortar of the Night Market: shop pertama setelah Mortar dibeli
+  // adalah market day — semua harga -10% + satu stempel di Ledger.
+  state.marketDayActive = false;
+  if (state.mortarPending) {
+    state.mortarPending = false;
+    state.marketDayActive = true;
     for (const offer of state.shopOffers) {
-      offer.price = Math.max(SHOP_MIN_PRICE, offer.price - HAGGLE_DISCOUNT);
+      offer.price = Math.max(1, Math.floor(offer.price * (1 - MARKET_DISCOUNT)));
+    }
+    if (state.ledger) {
+      state.ledger.marketStamps = (state.ledger.marketStamps || 0) + 1;
+      saveLedger(state.ledger);
     }
   }
   state.screen = 'dayResult';
@@ -310,6 +342,8 @@ export function buyOffer(state, index) {
   offer.sold = true;
   if (offer.kind === 'reagent' || offer.kind === 'utility') {
     state.extraCards.push(offer.id);
+  } else if (offer.kind === 'bundle') {
+    state.extraCards.push(...TOOL_BUNDLE_CARDS);
   } else if (offer.kind === 'relic') {
     state.ownedRelics.push(offer.id);
     // Relic yang dibeli tercatat permanen di Ledger (membuka tier shop
@@ -319,6 +353,13 @@ export function buyOffer(state, index) {
         state.runNewRelics.push(offer.id);
       }
       saveLedger(state.ledger);
+    }
+    // Efek pembelian langsung: Mortar meng-arm market day berikutnya;
+    // Whistle + Crooked Ladle menyalakan lapisan audio-nya.
+    if (offer.id === 'nightMortar') state.mortarPending = true;
+    if (state.audio) {
+      state.audio.setWhistleLayer(state.ownedRelics.includes('pipWhistle'));
+      state.audio.setStirVariant(state.ownedRelics.includes('crookedLadle'));
     }
   }
   return { ok: true };
@@ -334,6 +375,8 @@ export function armOrResetLedger(state) {
   }
   state.ledger = resetLedger();
   state.runNumber = 1;
+  state.signatureFamilies = [];
+  state.ledgerCountAtRunStart = 0;
   state.newLedgerArmed = false;
   return state;
 }
@@ -388,17 +431,15 @@ export function activateUtilityCard(state, index) {
   state.discard.push(cardId);
   state.selected = null;
   if (cardId === 'stir') {
-    const count = state.ownedRelics.includes('stirCharm') ? STIR_CHARM_DRAW : STIR_DRAW;
-    const drawn = drawCards(state.hand, state.deck, state.discard, count, state.rng);
+    const drawn = drawCards(state.hand, state.deck, state.discard, STIR_DRAW, state.rng);
     setNotice(state, `Stir! Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`);
     return { status: 'stir', drawn };
   }
   if (cardId === 'cool') {
-    const fraction = state.ownedRelics.includes('coolCharm') ? COOL_CHARM_FRACTION : COOL_FRACTION;
     for (const customer of state.queue) {
       customer.patience = Math.min(
         customer.maxPatience,
-        customer.patience + fraction * customer.maxPatience,
+        customer.patience + COOL_FRACTION * customer.maxPatience,
       );
     }
     setNotice(state, 'Cool! The queue calms down.');

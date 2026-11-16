@@ -50,6 +50,18 @@ MUSIC_MELODY[26] = 523.25;
 MUSIC_MELODY[28] = 587.33;
 MUSIC_MELODY[30] = 440.0;
 
+// Lapisan peluit (Pip's Tin Whistle): nada tinggi jarang di ketuk kosong
+// melodi — oktaf atas pentatonik yang sama, lembut, seperti peluit timah.
+const WHISTLE_MELODY = new Array(MUSIC_BEATS).fill(null);
+WHISTLE_MELODY[1] = 1046.5;
+WHISTLE_MELODY[7] = 1174.66;
+WHISTLE_MELODY[10] = 1046.5;
+WHISTLE_MELODY[15] = 1318.51;
+WHISTLE_MELODY[19] = 1174.66;
+WHISTLE_MELODY[23] = 1046.5;
+WHISTLE_MELODY[27] = 1174.66;
+WHISTLE_MELODY[31] = 1046.5;
+
 export class AudioEngine {
   constructor() {
     this.muted = false;
@@ -62,6 +74,12 @@ export class AudioEngine {
     this.beatsScheduled = 0;
     this.nodesCreated = 0;
     this.events = [];
+    // Lapisan relic (roster Xora): whistleLayer (Pip's Tin Whistle)
+    // menambah melodi peluit ke loop musik; stirVariant (Crooked Ladle)
+    // mengubah pop gelembung menjadi varian goyang. Diatur states.js
+    // saat relic dibeli / run dimulai; default mati (v2 persis).
+    this.whistleLayer = false;
+    this.stirVariant = false;
   }
 
   logEvent(name, detail = null) {
@@ -109,6 +127,16 @@ export class AudioEngine {
     return this.setMuted(!this.muted);
   }
 
+  setWhistleLayer(on) {
+    this.whistleLayer = Boolean(on);
+    return this.whistleLayer;
+  }
+
+  setStirVariant(on) {
+    this.stirVariant = Boolean(on);
+    return this.stirVariant;
+  }
+
   // Satu nada synth: osilator + amplop gain ke master. Mengembalikan
   // osilator, atau null bila tidak ada konteks / sedang mute.
   tone({ freq, freqEnd = null, type = 'sine', dur = 0.15, gain = 0.15, when = 0, attack = 0.005 }) {
@@ -131,11 +159,15 @@ export class AudioEngine {
     return osc;
   }
 
-  // Pop gelembung: pitch jatuh cepat, beda per elemen.
+  // Pop gelembung: pitch jatuh cepat, beda per elemen. Varian stir
+  // (Crooked Ladle): nada kedua bergoyang mengikuti pop utama.
   bubble(elementId = null) {
     const pitch = BUBBLE_PITCH[elementId] || BUBBLE_PITCH_DEFAULT;
     this.logEvent('bubble', elementId);
     this.tone({ freq: pitch * 1.5, freqEnd: pitch, type: 'sine', dur: 0.12, gain: 0.22 });
+    if (this.stirVariant) {
+      this.tone({ freq: pitch * 1.1, freqEnd: pitch * 1.35, type: 'triangle', dur: 0.1, gain: 0.1, when: 0.03 });
+    }
   }
 
   // Chime sajian: dua nada naik (E5 -> B5).
@@ -181,6 +213,18 @@ export class AudioEngine {
         gain: 0.05,
         when: time - this.context.currentTime,
       });
+    }
+    if (this.whistleLayer) {
+      const whistle = WHISTLE_MELODY[beat];
+      if (whistle !== null) {
+        this.tone({
+          freq: whistle,
+          type: 'sine',
+          dur: 0.4,
+          gain: 0.03,
+          when: time - this.context.currentTime,
+        });
+      }
     }
   }
 

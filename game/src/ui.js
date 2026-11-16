@@ -41,6 +41,8 @@ import {
   drawCauldronHalo,
   drawCauldronLiquid,
   drawCustomerPortrait,
+  drawNineNecks,
+  drawSideFlask,
   drawSilhouette,
   drawSteam,
 } from './render_entities.js';
@@ -52,7 +54,7 @@ import {
   moodColor,
   moodFor,
 } from './regulars.js';
-import { marketChipText } from './market.js';
+import { marketChipText, tomorrowChipText, tomorrowMarketFor } from './market.js';
 
 export const LAYOUT = {
   startButton: { x: 490, y: 556, w: 300, h: 64 },
@@ -104,12 +106,12 @@ function heartsLine(hearts, max) {
   return line.trim();
 }
 
-function drawTitleChip(ctx, text, x, y, alignRight) {
-  ctx.font = '20px Georgia, serif';
+function drawTitleChip(ctx, text, x, y, alignRight, fontPx = 20) {
+  ctx.font = `${fontPx}px Georgia, serif`;
   const w = ctx.measureText(text).width + 28;
   const left = alignRight ? x - w : x;
   drawPanel(ctx, left, y, w, 30, 15);
-  drawText(ctx, text, left + w / 2, y + 21, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+  drawText(ctx, text, left + w / 2, y + 21, { font: `${fontPx}px Georgia, serif`, align: 'center', color: PALETTE.creamDim });
 }
 
 function drawTitle(ctx, state) {
@@ -126,6 +128,13 @@ function drawTitle(ctx, state) {
     true,
   );
   drawTitleChip(ctx, marketChipText(state.dailyMarket), 1264, 52, true);
+  // Almanac of Borrowed Days: pratinjau pasar besok, satu hari lebih awal.
+  // Kolom kiri, 18px + format ringkas (chip 20px 'ON DAY' menabrak judul di
+  // kedua sisi — terverifikasi audit visual 2×; chip kini berakhir ±x400,
+  // judul mulai x423).
+  if (state.ledger && state.ledger.relics.includes('borrowedAlmanac')) {
+    drawTitleChip(ctx, tomorrowChipText(tomorrowMarketFor()), 16, 88, false, 18);
+  }
   drawText(ctx, 'ALEMBIC RUSH', 640, 120, {
     font: '64px Georgia, serif',
     align: 'center',
@@ -187,9 +196,14 @@ function drawDayIntro(ctx, state) {
   }
   const deckSize = deckComposition(state.day, state.extraCards || []).length;
   const relicNames = (state.ownedRelics || []).map((id) => RELICS[id].name);
+  let relicLine = relicNames.length > 0 ? relicNames.join(', ') : 'none yet';
+  ctx.font = '20px Georgia, serif';
+  if (ctx.measureText(`Deck: ${deckSize} cards   Relics: ${relicLine}`).width > 1100) {
+    relicLine = `${relicNames.length} owned`;
+  }
   drawText(
     ctx,
-    `Deck: ${deckSize} cards   Relics: ${relicNames.length > 0 ? relicNames.join(', ') : 'none yet'}`,
+    `Deck: ${deckSize} cards   Relics: ${relicLine}`,
     640,
     y + 10,
     { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim },
@@ -226,7 +240,7 @@ function drawCustomers(ctx, state) {
     ctx.arc(x + 40, y + 40, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fraction);
     ctx.stroke();
     const tag = patron ? patron.short.toUpperCase() : customer.critic ? 'CRITIC' : customer.purist ? 'PURIST' : 'GUEST';
-    drawText(ctx, tag, x + 80, y + 36, { font: '20px Georgia, serif', color: PALETTE.copperBright });
+    drawText(ctx, customer.bonus ? `${tag} · BONUS` : tag, x + 80, y + 36, { font: '20px Georgia, serif', color: PALETTE.copperBright });
     drawText(ctx, `${Math.ceil(customer.patience)}s`, x + 80, y + 62, {
       font: '20px Georgia, serif',
       color: patienceColor(fraction),
@@ -264,12 +278,13 @@ function drawCauldron(ctx, state) {
   const slots = state.cauldron ? state.cauldron.slots : [];
   const filled = slots.filter(Boolean).map((cardId) => ELEMENT_BY_ID[cardId]);
   const mixColor = mixElementColors(filled);
+  const owned = state.ownedRelics || [];
   drawCauldronHalo(ctx, cx, cy, 86, mixColor);
   ctx.fillStyle = '#0f0a06';
   ctx.beginPath();
   ctx.arc(cx, cy, 86, 0, Math.PI * 2);
   ctx.fill();
-  drawCauldronLiquid(ctx, cx, cy, 86, mixColor, state.animTime || 0);
+  drawCauldronLiquid(ctx, cx, cy, 86, mixColor, state.animTime || 0, owned.includes('crookedLadle') ? 2.2 : 1);
   drawCauldronBlobs(ctx, cx, cy, 86, filled, state.animTime || 0);
   if (mixColor) drawSteam(ctx, cx, cy, 86, state.animTime || 0);
   ctx.strokeStyle = PALETTE.copper;
@@ -277,6 +292,8 @@ function drawCauldron(ctx, state) {
   ctx.beginPath();
   ctx.arc(cx, cy, 86, 0, Math.PI * 2);
   ctx.stroke();
+  if (owned.includes('nineNecks')) drawNineNecks(ctx, cx, cy, 86);
+  if (owned.includes('pelicanFlask')) drawSideFlask(ctx, 468, 408, mixColor, state.animTime || 0);
   drawText(ctx, 'CAULDRON', cx, cy - 96, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
   slots.forEach((cardId, i) => {
     const rect = cauldronSlotRect(slots.length, i);
@@ -327,7 +344,7 @@ function drawHand(ctx, state) {
 function drawPlay(ctx, state) {
   drawBackground(ctx, state);
   const cfg = dayConfig(state.day);
-  const theme = effectiveThemeFor(state.day, state.dailyMarket);
+  const theme = effectiveThemeFor(state.day, state.dailyMarket, state.dayVariant || null);
   drawText(ctx, `DAY ${state.day}/10`, 24, 40, { font: '22px Georgia, serif', color: theme.hudTint });
   ctx.font = '22px Georgia, serif';
   const dayWidth = ctx.measureText(`DAY ${state.day}/10`).width;
@@ -392,6 +409,20 @@ function wrapLines(ctx, text, maxWidth) {
   return lines;
 }
 
+// Nama relic dibungkus maksimal 2 baris: coba ukuran font dari besar ke
+// kecil sampai muat. Nama pendek tetap memakai ukuran penuh; hanya nama
+// terpanjang (Quill's Ink-Stained Atlas) yang turun satu tingkat.
+function fitNameLines(ctx, name, maxWidth, sizes) {
+  for (const size of sizes) {
+    ctx.font = `${size}px Georgia, serif`;
+    const lines = wrapLines(ctx, name, maxWidth);
+    if (lines.length <= 2) return { lines, size };
+  }
+  const size = sizes[sizes.length - 1];
+  ctx.font = `${size}px Georgia, serif`;
+  return { lines: wrapLines(ctx, name, maxWidth).slice(0, 2), size };
+}
+
 // Grid mini Ledger untuk layar gabungan (Fase 2): 24 sel ikon saja —
 // owned menyala dengan bingkai emas, undiscovered gelap dengan "?".
 // Nama lengkap relic tampil di layar Ledger, bukan di grid mini ini.
@@ -425,8 +456,15 @@ function drawLedgerMiniGrid(ctx, state, x0, y0) {
 }
 
 // Roster regular untuk layar gabungan (Fase 2): baris potret + nama
-// lengkap + ikon favorit + jumlah kunjungan + titik mood.
+// lengkap + ikon favorit + jumlah kunjungan + titik mood. Wax Seal:
+// dendam ditandai segel lilin merah sesudah nama. Ledger of Small Debts:
+// total koin seumur hidup sesudah nama (tercatat selalu, tampil hanya
+// saat relic tercatat). Penempatan diukur agar tidak pernah menabrak
+// ikon favorit di kanan.
 function drawRegularsRoster(ctx, state, x0, y0, width) {
+  const showDebts = Boolean(state.ledger && state.ledger.relics.includes('smallDebts'));
+  const showSeal = (state.ownedRelics || []).includes('waxSeal');
+  ctx.font = '20px Georgia, serif';
   PATRONS.forEach((patron, i) => {
     const y = y0 + i * 26;
     const cy = y + 11;
@@ -438,6 +476,24 @@ function drawRegularsRoster(ctx, state, x0, y0, width) {
       font: '20px Georgia, serif',
       color: visits > 0 ? PALETTE.cream : PALETTE.creamDim,
     });
+    let afterX = x0 + 30 + ctx.measureText(patron.name).width + 12;
+    if (showSeal && record && record.grudge) {
+      ctx.fillStyle = '#a03028';
+      ctx.beginPath();
+      ctx.arc(afterX + 7, cy, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f2e6cf';
+      ctx.beginPath();
+      ctx.arc(afterX + 7, cy, 3, 0, Math.PI * 2);
+      ctx.fill();
+      afterX += 22;
+    }
+    if (showDebts) {
+      const coinsText = `¢${record ? record.coins || 0 : 0}`;
+      if (afterX + ctx.measureText(coinsText).width < x0 + width - 80) {
+        drawText(ctx, coinsText, afterX, y + 19, { font: '20px Georgia, serif', color: PALETTE.copperBright });
+      }
+    }
     drawElementGlyph(ctx, ELEMENT_BY_ID[patron.favorite], x0 + width - 64, cy, 10);
     drawText(ctx, `x${visits}`, x0 + width - 44, y + 19, { font: '20px Georgia, serif', color: PALETTE.creamDim });
     ctx.fillStyle = moodColor(mood);
@@ -479,12 +535,20 @@ function drawDayResult(ctx, state) {
   });
   drawLedgerMiniGrid(ctx, state, 40, 246);
   drawText(ctx, 'REGULARS', 40, 512, { font: '22px Georgia, serif', color: PALETTE.copperBright });
-  drawRegularsRoster(ctx, state, 40, 524, 364);
-  drawText(ctx, 'SHOP — click a card to buy, or press 1 / 2 / 3', 841, 228, {
-    font: '20px Georgia, serif',
-    align: 'center',
-    color: PALETTE.creamDim,
-  });
+  drawRegularsRoster(ctx, state, 40, 524, 400);
+  drawText(
+    ctx,
+    state.marketDayActive
+      ? 'SHOP — MARKET DAY! Prices -10% — click a card to buy, or press 1 / 2 / 3'
+      : 'SHOP — click a card to buy, or press 1 / 2 / 3',
+    841,
+    228,
+    {
+      font: '20px Georgia, serif',
+      align: 'center',
+      color: PALETTE.creamDim,
+    },
+  );
   (state.shopOffers || []).forEach((offer, i) => {
     const rect = shopCardRect(i);
     drawPanel(ctx, rect.x, rect.y, rect.w, rect.h, 12);
@@ -496,14 +560,24 @@ function drawDayResult(ctx, state) {
       });
       return;
     }
-    drawText(ctx, offerTitle(offer), rect.x + rect.w / 2, rect.y + 56, {
-      font: '26px Georgia, serif',
-      align: 'center',
+    // Nama panjang (roster Xora) dibungkus 2 baris; nama pendek tetap 1
+    // baris di posisi semula. Teks efek menyusut jadi 2 baris bila nama
+    // memakai 2 baris, agar ikon + harga tidak bergeser.
+    const name = offerTitle(offer);
+    const fitted = fitNameLines(ctx, name, rect.w - 24, [26, 22, 20]);
+    const nameLines = fitted.lines;
+    const nameTop = nameLines.length > 1 ? 44 : 56;
+    nameLines.forEach((line, li) => {
+      drawText(ctx, line, rect.x + rect.w / 2, rect.y + nameTop + li * 26, {
+        font: `${fitted.size}px Georgia, serif`,
+        align: 'center',
+      });
     });
     ctx.font = '20px Georgia, serif';
     const lines = wrapLines(ctx, offerText(offer), rect.w - 24);
-    lines.slice(0, 3).forEach((line, li) => {
-      drawText(ctx, line, rect.x + rect.w / 2, rect.y + 96 + li * 26 - (lines.length - 1) * 8, {
+    const textTop = nameLines.length > 1 ? 104 : 96;
+    lines.slice(0, nameLines.length > 1 ? 2 : 3).forEach((line, li) => {
+      drawText(ctx, line, rect.x + rect.w / 2, rect.y + textTop + li * 26 - (lines.length - 1) * 8, {
         font: '20px Georgia, serif',
         align: 'center',
         color: PALETTE.creamDim,
@@ -512,6 +586,7 @@ function drawDayResult(ctx, state) {
     const iconX = rect.x + rect.w / 2;
     if (offer.kind === 'reagent') drawElementGlyph(ctx, ELEMENT_BY_ID[offer.id], iconX, rect.y + 152, 22);
     else if (offer.kind === 'utility') drawUtilityGlyph(ctx, offer.id, iconX, rect.y + 152, 22);
+    else if (offer.kind === 'bundle') drawRelicIcon(ctx, 'secondAthanor', iconX, rect.y + 152, 22);
     else drawRelicIcon(ctx, offer.id, iconX, rect.y + 152, 22);
     drawText(ctx, `${offer.price} coins  [${i + 1}]`, rect.x + rect.w / 2, rect.y + 200, {
       font: '22px Georgia, serif',
@@ -562,6 +637,7 @@ function drawLedger(ctx, state) {
   const gap = 14;
   const x0 = (1280 - (6 * cellW + 5 * gap)) / 2;
   const y0 = 140;
+  ctx.font = '20px Georgia, serif';
   Object.values(RELICS).forEach((relic, i) => {
     const col = i % 6;
     const row = Math.floor(i / 6);
@@ -570,22 +646,47 @@ function drawLedger(ctx, state) {
     drawPanel(ctx, x, y, cellW, cellH, 10);
     const cx = x + cellW / 2;
     drawRelicIcon(ctx, relic.id, cx, y + 38, 22);
-    if (owned.includes(relic.id)) {
+    const isOwned = owned.includes(relic.id);
+    if (isOwned) {
       ctx.strokeStyle = PALETTE.copperBright;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.roundRect(x + 1, y + 1, cellW - 2, cellH - 2, 10);
       ctx.stroke();
-      drawText(ctx, relic.name, cx, y + 88, { font: '20px Georgia, serif', align: 'center' });
     } else {
       ctx.fillStyle = 'rgba(15,10,6,0.85)';
       ctx.beginPath();
       ctx.roundRect(x, y, cellW, cellH - 28, 10);
       ctx.fill();
       drawText(ctx, '?', cx, y + 45, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
-      drawText(ctx, relic.name, cx, y + 88, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
     }
+    // Nama panjang dibungkus 2 baris di dalam sel (nama pendek 1 baris).
+    const fitted = fitNameLines(ctx, relic.name, cellW - 8, [20, 16]);
+    const nameLines = fitted.lines;
+    const nameTop = nameLines.length > 1 ? 80 : 88;
+    nameLines.forEach((line, li) => {
+      drawText(ctx, line, cx, y + nameTop + li * 20, {
+        font: `${fitted.size}px Georgia, serif`,
+        align: 'center',
+        color: isOwned ? PALETTE.cream : PALETTE.creamDim,
+      });
+    });
   });
+  // Stempel sejarah: market day (Mortar) + skor run pertama (Receipt).
+  const stamps = [];
+  if (state.ledger && (state.ledger.marketStamps || 0) > 0) {
+    stamps.push(`Market stamps: ${state.ledger.marketStamps}`);
+  }
+  if (state.ledger && typeof state.ledger.firstRunScore === 'number') {
+    stamps.push(`First run: ${state.ledger.firstRunScore}`);
+  }
+  if (stamps.length > 0) {
+    drawText(ctx, stamps.join('   ·   '), 640, 640, {
+      font: '20px Georgia, serif',
+      align: 'center',
+      color: PALETTE.creamDim,
+    });
+  }
   drawButton(ctx, LAYOUT.backButton, 'BACK', { fill: '#3a2a1c', font: '20px Georgia, serif' });
 }
 
@@ -646,7 +747,8 @@ function drawDayStrip(ctx, state) {
   for (let d = 1; d <= 10; d += 1) {
     const cx = x0 + 16 + (d - 1) * 24;
     const cy = y + h / 2;
-    const theme = effectiveThemeFor(d, state.dailyMarket);
+    // Varian tema hanya diketahui untuk hari berjalan (diundi di beginDay).
+    const theme = effectiveThemeFor(d, state.dailyMarket, d === state.day ? state.dayVariant || null : null);
     if (d < state.day) {
       ctx.fillStyle = theme.hudTint;
       ctx.beginPath();

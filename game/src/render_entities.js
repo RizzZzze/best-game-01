@@ -43,7 +43,8 @@ export function drawSilhouette(ctx, cx, cy, r, accent) {
 }
 
 // Cairan kauldron: permukaan bergelombang + gradien warna campuran.
-export function drawCauldronLiquid(ctx, cx, cy, radius, mixColor, time) {
+// `wobble` mengalikan amplitudo gelombang (Crooked Ladle: goyangan stir).
+export function drawCauldronLiquid(ctx, cx, cy, radius, mixColor, time, wobble = 1) {
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -60,7 +61,7 @@ export function drawCauldronLiquid(ctx, cx, cy, radius, mixColor, time) {
   g.addColorStop(1, shadeRgb(mixColor, 0.55));
   ctx.fillStyle = g;
   const surfY = cy - radius * 0.18;
-  const wave = (px) => surfY + Math.sin(px * 0.09 + time * 2.2) * 4;
+  const wave = (px) => surfY + Math.sin(px * 0.09 + time * 2.2) * 4 * wobble;
   ctx.beginPath();
   ctx.moveTo(cx - radius, cy + radius);
   ctx.lineTo(cx - radius, wave(-radius));
@@ -139,7 +140,74 @@ export function drawCauldronBlobs(ctx, cx, cy, radius, elements, time) {
   ctx.restore();
 }
 
-// Uap mengepul di atas kauldron: 3 sulur bezier yang bergoyang pelan.
+// Sembilan leher Aludel: tonjolan kecil di sekeliling bibir kauldron.
+// Kosmetik — digambar saat Aludel of Nine Necks dimiliki.
+export function drawNineNecks(ctx, cx, cy, radius) {
+  ctx.save();
+  ctx.fillStyle = '#241610';
+  ctx.strokeStyle = '#c47b3a';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 9; i += 1) {
+    const a = -Math.PI / 2 + (i * Math.PI * 2) / 9;
+    const nx = cx + Math.cos(a) * (radius + 6);
+    const ny = cy + Math.sin(a) * (radius + 6);
+    ctx.beginPath();
+    ctx.arc(nx, ny, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#0f0a06';
+    ctx.beginPath();
+    ctx.arc(nx, ny, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#241610';
+  }
+  ctx.restore();
+}
+
+// Labu samping Pelican Flask: cairan bersirkulasi dari kauldron —
+// permukaan berdenyut dan busur alir ke arah kauldron. Kosmetik.
+export function drawSideFlask(ctx, cx, cy, mixColor, time) {
+  ctx.save();
+  const r = 26;
+  ctx.fillStyle = 'rgba(20,13,8,0.85)';
+  ctx.strokeStyle = '#c47b3a';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(cx - 6, cy - r - 14, 12, 18, 4);
+  ctx.fill();
+  ctx.stroke();
+  if (mixColor) {
+    const level = cy + 4 + Math.sin(time * 1.6) * 4;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 3, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = mixColor;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(cx - r, level, r * 2, r * 2);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Busur alir ke kauldron (kanan): putus-putus yang bergerak.
+    ctx.strokeStyle = mixColor;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 2;
+    if (typeof ctx.setLineDash === 'function') {
+      ctx.setLineDash([6, 8]);
+      ctx.lineDashOffset = -time * 24;
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx + r + 2, cy - 8);
+    ctx.quadraticCurveTo(cx + 60, cy - 26, cx + 92, cy - 10);
+    ctx.stroke();
+    if (typeof ctx.setLineDash === 'function') ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
 // Fungsi murni dari waktu — tanpa RNG.
 export function drawSteam(ctx, cx, cy, radius, time) {
   ctx.save();
@@ -211,5 +279,17 @@ export function drawCustomerPortrait(ctx, customer, cx, cy, r, accent) {
     starPath(ctx, cx - r * 0.45, cy + r * 0.45, r * 0.16);
     ctx.fillStyle = '#f2b234';
     ctx.fill();
+  }
+  // Twin-order (Aludel): dua cincin bertaut di kanan bawah potret.
+  // Independen dari tipe — twin bisa Guest/Purist/Critic/regular.
+  if (customer.twin) {
+    ctx.strokeStyle = '#e8a558';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx + r * 0.42, cy + r * 0.52, r * 0.16, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + r * 0.62, cy + r * 0.52, r * 0.16, 0, Math.PI * 2);
+    ctx.stroke();
   }
 }

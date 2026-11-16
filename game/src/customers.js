@@ -1,9 +1,10 @@
 // customers.js — antrean, timer kesabaran, dan pembangkit pesanan.
 
 import {
+  TWIN_CHANCE,
   criticPatience,
   dayConfig,
-  generateRecipe,
+  generateRecipeWithFamily,
   rollPurist,
   warningRemaining,
 } from './rules.js';
@@ -26,14 +27,18 @@ export function createCustomer(day, rng, opts = {}) {
   const patronId = opts.patronId || null;
   let maxPatience = isCritic ? criticPatience(cfg.patience) : cfg.patience;
   if (patronId && opts.grudge) maxPatience *= GRUDGE_PATIENCE_FACTOR;
+  const { recipe, family } = generateRecipeWithFamily(day, rng, opts.families || []);
   const customer = {
     id: nextCustomerId,
-    recipe: generateRecipe(day, rng),
+    recipe,
+    family,
     patience: maxPatience,
     maxPatience,
     critic: isCritic,
     purist: isCritic || patronId ? false : rollPurist(day, false, rng),
     patronId,
+    bonus: Boolean(opts.bonus),
+    twin: false,
     warned: false,
   };
   nextCustomerId += 1;
@@ -45,6 +50,10 @@ export function createCustomer(day, rng, opts = {}) {
 // Fase 2: kedatangan non-kritik sejak run ke-2 berkesempatan menjadi
 // regular (REGULAR_CHANCE); slot kritik tetap didahulukan dan tidak
 // berubah. spawnOpts tanpa ledger/runNumber = perilaku v2 (tamu murni).
+// Revisi Fase 2 (roster Xora): spawnOpts.families = famili signature aktif
+// (resep templat); spawnOpts.twinAllowed = Aludel dimiliki (twin-order
+// menyalin resep pelanggan yang sedang mengantre); spawnOpts.bonusNext =
+// kedatangan ini adalah bonus order Charter (bukan slot kritik).
 export function spawnNext(queue, day, rng, arrivalIndex, criticSlots, spawnOpts = {}) {
   const cfg = dayConfig(day);
   if (queue.length >= cfg.queueMax) return null;
@@ -68,7 +77,17 @@ export function spawnNext(queue, day, rng, arrivalIndex, criticSlots, spawnOpts 
     critic: isCriticSlot,
     patronId,
     grudge,
+    families: spawnOpts.families || [],
+    bonus: Boolean(spawnOpts.bonusNext) && !isCriticSlot,
   });
+  // Twin-order: salin resep pelanggan yang sedang mengantre (bukan resep
+  // segar). Tanpa twinAllowed, tidak ada undian tambahan.
+  if (spawnOpts.twinAllowed && queue.length > 0 && rng() < TWIN_CHANCE) {
+    const source = queue[Math.floor(rng() * queue.length)];
+    customer.recipe = [...source.recipe];
+    customer.family = source.family || null;
+    customer.twin = true;
+  }
   queue.push(customer);
   return customer;
 }

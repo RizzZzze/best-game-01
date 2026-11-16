@@ -144,31 +144,59 @@ export function brightenRgb(color, factor) {
 // ---- Keluarga tema per hari: fungsi murni dari nomor hari ----
 export const DAY_THEMES = [
   {
-    name: 'DAWN MARKET', skyTop: '#2a1a20', skyBottom: '#4a2c1c',
+    id: 'dawnMarket', name: 'DAWN MARKET', skyTop: '#2a1a20', skyBottom: '#4a2c1c',
     celestial: 'sun', celestialColor: '#f2c98a',
-    ambient: 'mote', ambientColor: '#e8c890', hudTint: '#f2c98a', flash: 0,
+    ambient: 'mote', ambientColor: '#e8c890', hudTint: '#f2c98a', flash: 0, night: false,
   },
   {
-    name: 'MIDDAY MARKET', skyTop: '#2c2113', skyBottom: '#5a3d1a',
+    id: 'middayMarket', name: 'MIDDAY MARKET', skyTop: '#2c2113', skyBottom: '#5a3d1a',
     celestial: 'sun', celestialColor: '#ffe9b0',
-    ambient: 'mote', ambientColor: '#f2e0a8', hudTint: '#ffe9b0', flash: 0,
+    ambient: 'mote', ambientColor: '#f2e0a8', hudTint: '#ffe9b0', flash: 0, night: false,
   },
   {
-    name: 'RAINY DUSK', skyTop: '#1c1626', skyBottom: '#33283f',
+    id: 'rainyDusk', name: 'RAINY DUSK', skyTop: '#1c1626', skyBottom: '#33283f',
     celestial: 'none', celestialColor: null,
-    ambient: 'rain', ambientColor: '#8ea0c0', hudTint: '#b8a8d8', flash: 0,
+    ambient: 'rain', ambientColor: '#8ea0c0', hudTint: '#b8a8d8', flash: 0, night: false,
   },
   {
-    name: 'NIGHT STORM', skyTop: '#0e1420', skyBottom: '#1c2838',
+    id: 'nightStorm', name: 'NIGHT STORM', skyTop: '#0e1420', skyBottom: '#1c2838',
     celestial: 'none', celestialColor: null,
-    ambient: 'rain', ambientColor: '#7a90b0', hudTint: '#8ec9ff', flash: 1,
+    ambient: 'rain', ambientColor: '#7a90b0', hudTint: '#8ec9ff', flash: 1, night: true,
   },
   {
-    name: 'BLOOD MOON', skyTop: '#241014', skyBottom: '#3d1a1a',
+    id: 'bloodMoon', name: 'BLOOD MOON', skyTop: '#241014', skyBottom: '#3d1a1a',
     celestial: 'bloodMoon', celestialColor: '#e5484d',
-    ambient: 'ember', ambientColor: '#e87a4d', hudTint: '#f28a7a', flash: 0,
+    ambient: 'ember', ambientColor: '#e87a4d', hudTint: '#f28a7a', flash: 0, night: false,
   },
 ];
+
+// Varian tema (roster Xora): masuk pool hari saat relic pembukanya
+// dimiliki run ini. Bentuk sama dengan DAY_THEMES; `shadows` menambah
+// bayangan panjang di latar. Kunci di sini WAJIB sama dengan kunci
+// VARIANT_RELICS di rules.js.
+export const THEME_VARIANTS = {
+  quietRain: {
+    id: 'quietRain', name: 'QUIET RAIN', skyTop: '#1a1c2a', skyBottom: '#2c3248',
+    celestial: 'none', celestialColor: null,
+    ambient: 'rain', ambientColor: '#9db4d4', hudTint: '#a8b8d8', flash: 0, night: false,
+  },
+  snowfall: {
+    id: 'snowfall', name: 'SNOWFALL', skyTop: '#232830', skyBottom: '#3a4252',
+    celestial: 'none', celestialColor: null,
+    ambient: 'snow', ambientColor: '#e8ecf2', hudTint: '#d8e0ec', flash: 0, night: false,
+  },
+  longDusk: {
+    id: 'longDusk', name: 'LONG DUSK', skyTop: '#2a1a14', skyBottom: '#54331c',
+    celestial: 'sun', celestialColor: '#e8a558',
+    ambient: 'mote', ambientColor: '#d8a878', hudTint: '#e8a878', flash: 0, night: false,
+    shadows: true,
+  },
+  bloodMoonRite: {
+    id: 'bloodMoonRite', name: 'BLOOD MOON RITE', skyTop: '#2c1016', skyBottom: '#481c1c',
+    celestial: 'bloodMoon', celestialColor: '#ff5a4d',
+    ambient: 'ember', ambientColor: '#ff8a5c', hudTint: '#ff8a7a', flash: 0, night: true,
+  },
+};
 
 export function themeFor(day) {
   const idx = Math.min(4, Math.max(0, Math.floor((day - 1) / 2)));
@@ -176,10 +204,11 @@ export function themeFor(day) {
 }
 
 // Tema efektif: TODAY'S MARKET mengganti tema SATU hari dengan tema lain
-// (visual saja). daily = { day, themeIndex } dari market.js; tanpa daily,
-// tema alami yang berlaku.
-export function effectiveThemeFor(day, daily) {
+// (didahulukan); bila tidak, varian tema hari itu (diundi di beginDay
+// saat relic varian dimiliki); bila tidak, tema alami. Visual saja.
+export function effectiveThemeFor(day, daily, variantId = null) {
   if (daily && day === daily.day) return DAY_THEMES[daily.themeIndex];
+  if (variantId && THEME_VARIANTS[variantId]) return THEME_VARIANTS[variantId];
   return themeFor(day);
 }
 
@@ -224,7 +253,7 @@ const GLOW_DOTS = [
 // sebelum panel; semua gerakan fungsi dari animTime (deterministik).
 export function drawBackground(ctx, state) {
   const time = state.animTime || 0;
-  const theme = effectiveThemeFor(state.day || 1, state.dailyMarket);
+  const theme = effectiveThemeFor(state.day || 1, state.dailyMarket, state.dayVariant || null);
   clearScreen(ctx, 1280, 720);
   // Strip langit bertema (0-92px) + benda langit.
   const sky = ctx.createLinearGradient(0, 0, 0, 92);
@@ -368,6 +397,44 @@ export function drawBackground(ctx, state) {
     ctx.fillStyle = dg;
     ctx.beginPath();
     ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Bayangan panjang (varian LONG DUSK): pita diagonal gelap di pita tengah.
+  if (theme.shadows) {
+    ctx.fillStyle = 'rgba(10,6,3,0.16)';
+    for (let i = 0; i < 5; i += 1) {
+      const sx = 120 + i * 260;
+      ctx.beginPath();
+      ctx.moveTo(sx, 260);
+      ctx.lineTo(sx + 60, 260);
+      ctx.lineTo(sx + 190, 520);
+      ctx.lineTo(sx + 130, 520);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  // Prop distillery (Pelican Flask): siluet alembic kecil di strip langit,
+  // di antara atap kios — tanpa tabrakan dengan elemen HUD apa pun.
+  if ((state.ownedRelics || []).includes('pelicanFlask')) {
+    const px = 1150;
+    const py = 92;
+    ctx.fillStyle = 'rgba(15,10,6,0.7)';
+    ctx.beginPath();
+    ctx.arc(px, py - 10, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(px - 2, py - 26, 4, 18);
+    ctx.beginPath();
+    ctx.arc(px + 14, py - 22, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(15,10,6,0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(px + 2, py - 24);
+    ctx.quadraticCurveTo(px + 12, py - 30, px + 14, py - 22);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(232,165,88,0.5)';
+    ctx.beginPath();
+    ctx.arc(px, py - 8, 4, 0, Math.PI * 2);
     ctx.fill();
   }
 }

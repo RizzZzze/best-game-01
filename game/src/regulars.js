@@ -26,9 +26,11 @@ export const DEVOTED_VISITS = 5;
 
 export function patronRecord(ledger, patronId) {
   if (!ledger.regulars[patronId]) {
-    ledger.regulars[patronId] = { visits: 0, grudge: false };
+    ledger.regulars[patronId] = { visits: 0, grudge: false, coins: 0 };
   }
-  return ledger.regulars[patronId];
+  const record = ledger.regulars[patronId];
+  if (typeof record.coins !== 'number') record.coins = 0;
+  return record;
 }
 
 export function moodFor(record) {
@@ -60,15 +62,23 @@ export function pickPatron(rng, excludeIds) {
 }
 
 // Dipanggil dari resolveBrew setelah sajian berhasil terhadap regular:
-// kunjungan +1, dendam lunas, pelacakan run untuk footer win.
-export function recordRegularServe(state, target, elements) {
+// kunjungan +1, dendam lunas, koin seumur hidup terakumulasi (Ledger of
+// Small Debts menampilkannya), pelacakan run untuk footer win. Bila
+// dendam lunas saat Wax Seal dimiliki, sajian BERIKUTNYA mendapat +5%
+// koin (flag sealBonusPending, dikonsumsi resolveBrew).
+export function recordRegularServe(state, target, elements, coinsGained = 0) {
   const patron = PATRON_BY_ID[target.patronId];
   if (!patron || !state.ledger) return false;
   const record = patronRecord(state.ledger, patron.id);
   const firstVisit = record.visits === 0;
+  const hadGrudge = record.grudge === true;
   record.visits += 1;
   record.grudge = false;
+  record.coins += coinsGained;
   saveLedger(state.ledger);
+  if (hadGrudge && (state.ownedRelics || []).includes('waxSeal')) {
+    state.sealBonusPending = true;
+  }
   if (typeof state.runRegularVisits === 'number') state.runRegularVisits += 1;
   if (firstVisit && Array.isArray(state.runNewRegulars)) {
     state.runNewRegulars.push(patron.id);

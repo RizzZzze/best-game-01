@@ -76,73 +76,98 @@ export const REAGENT_PRICES = {
   saltstar: 20,
 };
 
-// ---- Konstanta efek relic tier 2–4 (Fase 2 v3). Semua efek kecil dan
-// variasi/pool saja; tidak ada yang mengubah angka inti (resep, kuota,
-// kesabaran dasar, biaya mulligan, atau ambang rank).
+// ---- Konstanta efek relic (roster Xora, revisi Fase 2). Semua efek
+// kecil dan variasi/pool saja; numerik dibatasi ±10% (plafon meta).
+// Tidak ada yang mengubah angka inti v2 (resep, kuota, kesabaran dasar,
+// biaya mulligan, atau ambang rank).
 export const COOL_FRACTION = 0.1;
-export const COOL_CHARM_FRACTION = 0.15;
 export const STIR_DRAW = 2;
-export const STIR_CHARM_DRAW = 3;
-export const LONG_CANDLE_BONUS_SEC = 1;
-export const WELCOME_MAT_BONUS_SEC = 5;
-export const PURIST_VEIL_BONUS_SEC = 3;
-export const FROST_CHARM_BONUS_SEC = 1;
-export const HAGGLE_DISCOUNT = 2;
-export const SHOP_MIN_PRICE = 8;
-export const CRITIC_SEAL_MULT = 2.25;
-export const SEAR_STONE_MULT = 1.6;
-export const GOLD_STAR_SCORE = 10;
+// Peluang pesanan memakai famili signature saat keepsake-nya tercatat.
+export const FAMILY_CHANCE = 0.25;
+// Peluang spawn menjadi twin-order (Aludel) saat ada pelanggan mengantre.
+export const TWIN_CHANCE = 0.15;
+// Peluang hari memakai varian tema (saat relic variannya dimiliki).
+export const THEME_VARIANT_CHANCE = 0.3;
+// Parade Pip + hari hujan tenang: kesabaran x1.05.
+export const PARADE_PATIENCE_FACTOR = 1.05;
+export const RAIN_PATIENCE_FACTOR = 1.05;
+// Mortar: harga shop -10% pada market day.
+export const MARKET_DISCOUNT = 0.1;
+// Glass: sajian terakhir hari itu +10% koin. Wax Seal: dendam yang
+// lunas memberi +5% koin pada sajian berikutnya.
+export const GLASS_COIN_FACTOR = 1.1;
+export const SEAL_COIN_FACTOR = 1.05;
+// Tool bundle (Second Athanor): 3 kartu utilitas untuk deck.
+export const TOOL_BUNDLE_PRICE = 30;
+export const TOOL_BUNDLE_CARDS = ['stir', 'cool', 'purge'];
+// Tema yang dihitung "fog day" untuk Charter of the Fog Guild.
+export const FOG_THEME_IDS = ['rainyDusk', 'quietRain'];
 
-// Roster relic 24 slot (Fase 2 v3). tier 0 selalu ada di pool shop;
-// tier 1/2/3 terbuka bila Ledger mencatat >= RELIC_TIER_THRESHOLDS[tier]
-// relic. `icon` memilih bentuk ikon prosedural di drawRelicIcon.
-// Efek tiap relic diterapkan di hook yang sudah ada (serveCoins,
-// resolveBrew, beginDay, activateUtilityCard, finishDay) — bukan angka
-// bebas: setiap efek membaca konstanta bernama di atas.
-export const RELIC_TIER_THRESHOLDS = [0, 3, 12, 18];
+// Famili pesanan signature (keepsakes): keepsake yang TERCATAT di Ledger
+// membuka famili itu ke pool resep run berikutnya (dibekukan saat run
+// dimulai, seperti tier shop). template: 'doubleKey' = 2x elemen kunci +
+// pengisi; 'pair' = kedua kunci + pengisi; 'quad' = 4 elemen berbeda
+// termasuk kunci (hari 9-10 saja).
+export const SIGNATURE_FAMILIES = {
+  vex: { id: 'vex', keepsake: 'vexPestle', keys: ['gloomcap'], minDay: 5, template: 'doubleKey' },
+  bram: { id: 'bram', keepsake: 'bramRetort', keys: ['cinnabar'], minDay: 1, template: 'doubleKey' },
+  ilse: { id: 'ilse', keepsake: 'ilseStrainer', keys: ['moonwell'], minDay: 1, template: 'doubleKey' },
+  marrow: { id: 'marrow', keepsake: 'marrowFan', keys: ['gloomcap', 'saltstar'], minDay: 7, template: 'pair' },
+  quill: { id: 'quill', keepsake: 'quillAtlas', keys: ['saltstar'], minDay: 9, maxDay: 10, template: 'quad' },
+};
+
+// Famili yang aktif untuk sebuah run: keepsake-nya ada di Ledger.
+export function familiesForLedger(ledger) {
+  if (!ledger || !Array.isArray(ledger.relics)) return [];
+  return Object.values(SIGNATURE_FAMILIES)
+    .filter((f) => ledger.relics.includes(f.keepsake))
+    .map((f) => f.id);
+}
+
+// Varian tema -> relic yang membukanya (dimiliki saat run berjalan).
+// Kunci di sini WAJIB sama dengan kunci THEME_VARIANTS di render_scene.js.
+export const VARIANT_RELICS = {
+  quietRain: 'quietRain',
+  snowfall: 'snowJar',
+  longDusk: 'longDuskGlass',
+  bloodMoonRite: 'bloodVial',
+};
+
+// Roster relic 24 slot (roster Xora, revisi Fase 2). tier 0 = 3 relic
+// v2 yang tidak berubah; tier 1/2/3 terbuka bila Ledger mencatat >=
+// RELIC_TIER_THRESHOLDS[tier] relic. `icon` memilih bentuk ikon
+// prosedural di drawRelicIcon. Distribusi tier (7/7/7): tier 1 membuka
+// keepsake pertama + varian tema awal + sejarah awal; tier 2 keepsake
+// hari-1 sisanya + vessels + papers; tier 3 keepsake akhir-game
+// (Quill hari 9-10, Marrow butuh dua elemen akhir) + event ekonomi +
+// varian tantangan.
+export const RELIC_TIER_THRESHOLDS = [0, 3, 9, 15];
 
 export const RELICS = {
   ladle: { id: 'ladle', name: 'Copper Ladle', price: 25, text: '+1 coin per serve', tier: 0, icon: { shape: 'ladle' } },
   bell: { id: 'bell', name: 'Bell', price: 20, text: 'Patience warning 5s earlier', tier: 0, icon: { shape: 'bell' } },
   extraSlot: { id: 'extraSlot', name: 'Extra Slot', price: 40, text: '+1 cauldron slot', minDay: EXTRA_SLOT_MIN_DAY, tier: 0, icon: { shape: 'extraSlot' } },
-  emberCup: { id: 'emberCup', name: 'Ember Cup', price: 22, text: '+1 coin when the brew holds Cinnabar', tier: 1, icon: { shape: 'cup', element: 'cinnabar' } },
-  tideCup: { id: 'tideCup', name: 'Tide Cup', price: 22, text: '+1 coin when the brew holds Moonwell', tier: 1, icon: { shape: 'cup', element: 'moonwell' } },
-  rootCup: { id: 'rootCup', name: 'Root Cup', price: 22, text: '+1 coin when the brew holds Thornroot', tier: 1, icon: { shape: 'cup', element: 'thornroot' } },
-  longCandle: { id: 'longCandle', name: 'Long Candle', price: 26, text: 'All customers +1s max patience', tier: 1, icon: { shape: 'candle' } },
-  welcomeMat: { id: 'welcomeMat', name: 'Welcome Mat', price: 18, text: 'First arrival each day +5s patience', tier: 2, icon: { shape: 'mat' } },
-  seedPouch: { id: 'seedPouch', name: 'Seed Pouch', price: 20, text: '+1 Cinnabar copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'cinnabar' } },
-  stirCharm: { id: 'stirCharm', name: 'Stirring Charm', price: 24, text: 'Stir draws 3 cards', tier: 1, icon: { shape: 'charmStir' } },
-  hiveCup: { id: 'hiveCup', name: 'Hive Cup', price: 22, text: '+1 coin when the brew holds Hivegold', tier: 2, icon: { shape: 'cup', element: 'hivegold' } },
-  shadeCup: { id: 'shadeCup', name: 'Shade Cup', price: 22, text: '+1 coin when the brew holds Gloomcap', tier: 2, icon: { shape: 'cup', element: 'gloomcap' } },
-  saltCup: { id: 'saltCup', name: 'Salt Cup', price: 22, text: '+1 coin when the brew holds Saltstar', tier: 2, icon: { shape: 'cup', element: 'saltstar' } },
-  moonPouch: { id: 'moonPouch', name: 'Moon Pouch', price: 20, text: '+1 Moonwell copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'moonwell' } },
-  thornPouch: { id: 'thornPouch', name: 'Thorn Pouch', price: 20, text: '+1 Thornroot copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'thornroot' } },
-  frostCharm: { id: 'frostCharm', name: 'Frost Charm', price: 22, text: 'Saltstar freeze lasts 5s', tier: 1, icon: { shape: 'charmFrost' } },
-  coolCharm: { id: 'coolCharm', name: 'Cool Charm', price: 20, text: 'Cool restores +15% patience', tier: 1, icon: { shape: 'charmCool' } },
-  haggleCoin: { id: 'haggleCoin', name: 'Haggling Coin', price: 28, text: 'Shop prices -2 coins (min 8)', tier: 3, icon: { shape: 'coin' } },
-  criticSeal: { id: 'criticSeal', name: "Critic's Seal", price: 26, text: 'Critics pay +25% more coins', tier: 3, icon: { shape: 'seal' } },
-  puristVeil: { id: 'puristVeil', name: "Purist's Veil", price: 22, text: 'Purists arrive with +3s patience', tier: 3, icon: { shape: 'veil' } },
-  goldStar: { id: 'goldStar', name: 'Gold Star', price: 24, text: 'Perfect days grant +10 score', tier: 3, icon: { shape: 'star' } },
-  honeyDip: { id: 'honeyDip', name: 'Honey Dipper', price: 22, text: 'Glazed also grants +1 coin', tier: 3, icon: { shape: 'dipper' } },
-  freshSprig: { id: 'freshSprig', name: 'Fresh Sprig', price: 24, text: 'Fresh draws 2 cards', tier: 3, icon: { shape: 'sprig' } },
-  searStone: { id: 'searStone', name: 'Searing Stone', price: 24, text: 'Seared pays +60% coins', tier: 3, icon: { shape: 'stone' } },
-};
-
-// Relic cangkir per elemen (+1 koin bila brew mengandung elemen itu) dan
-// relik kantong per elemen (+1 salinan di deck harian).
-export const CUP_RELICS = {
-  cinnabar: 'emberCup',
-  moonwell: 'tideCup',
-  thornroot: 'rootCup',
-  hivegold: 'hiveCup',
-  gloomcap: 'shadeCup',
-  saltstar: 'saltCup',
-};
-
-export const POUCH_RELICS = {
-  cinnabar: 'seedPouch',
-  moonwell: 'moonPouch',
-  thornroot: 'thornPouch',
+  vexPestle: { id: 'vexPestle', name: "Vex's Silver Pestle", price: 24, text: "Vex's Gloomcap tincture orders join the pool.", tier: 1, icon: { shape: 'pestle', element: 'gloomcap' } },
+  pipWhistle: { id: 'pipWhistle', name: "Pip's Tin Whistle", price: 22, text: 'Whistle music. One parade wave, +5% patience.', tier: 1, icon: { shape: 'whistle', element: 'hivegold' } },
+  quietRain: { id: 'quietRain', name: 'Cucurbit of Quiet Rain', price: 22, text: 'Quiet-rain days: +5% patience that day.', tier: 1, icon: { shape: 'cucurbit' } },
+  fireflyJar: { id: 'fireflyJar', name: 'Jar of Captured Fireflies', price: 18, text: 'Fireflies drift on night themes. Cosmetic.', tier: 1, icon: { shape: 'fireflies' } },
+  snowJar: { id: 'snowJar', name: 'Bell-Jar of Snow', price: 18, text: 'Snowfall theme days. Cosmetic.', tier: 1, icon: { shape: 'snowJar' } },
+  smallDebts: { id: 'smallDebts', name: 'Ledger of Small Debts', price: 20, text: 'Lifetime coins per regular shown in the roster.', tier: 1, icon: { shape: 'debts' } },
+  firstReceipt: { id: 'firstReceipt', name: 'Receipt of the First Run', price: 18, text: 'Your first-run score, stamped in the Ledger.', tier: 1, icon: { shape: 'receipt' } },
+  bramRetort: { id: 'bramRetort', name: "Bram's Cracked Retort", price: 24, text: "Bram's Cinnabar tonic orders join the pool.", tier: 2, icon: { shape: 'retort', element: 'cinnabar' } },
+  ilseStrainer: { id: 'ilseStrainer', name: "Ilse's Linen Strainer", price: 24, text: "Ilse's Moonwell draught orders join the pool.", tier: 2, icon: { shape: 'strainer', element: 'moonwell' } },
+  secondAthanor: { id: 'secondAthanor', name: 'The Second Athanor', price: 28, text: 'Shop adds a tool bundle offer (Stir+Cool+Purge).', tier: 2, icon: { shape: 'athanor' } },
+  nineNecks: { id: 'nineNecks', name: 'Aludel of Nine Necks', price: 26, text: 'Nine-neck cauldron. Twin orders share a recipe.', tier: 2, icon: { shape: 'aludel' } },
+  pelicanFlask: { id: 'pelicanFlask', name: 'Pelican Flask', price: 20, text: 'Liquid circulates to a side flask. Cosmetic.', tier: 2, icon: { shape: 'pelicanFlask' } },
+  waxSeal: { id: 'waxSeal', name: 'The Wax Seal of Returns', price: 24, text: 'Grudges shown. Restored grudge: +5% next serve.', tier: 2, icon: { shape: 'waxSeal' } },
+  borrowedAlmanac: { id: 'borrowedAlmanac', name: 'Almanac of Borrowed Days', price: 20, text: "Tomorrow's market theme previewed on the title.", tier: 2, icon: { shape: 'almanac' } },
+  quillAtlas: { id: 'quillAtlas', name: "Quill's Ink-Stained Atlas", price: 28, text: '4-element Saltstar orders, days 9-10 only.', tier: 3, icon: { shape: 'atlas', element: 'saltstar' } },
+  marrowFan: { id: 'marrowFan', name: "Marrow's Black Lace Fan", price: 28, text: 'Gloomcap-Saltstar pair orders join the pool.', tier: 3, icon: { shape: 'fan', element: 'gloomcap' } },
+  nightMortar: { id: 'nightMortar', name: 'Mortar of the Night Market', price: 26, text: 'Next shop: prices -10%. A stamp in the Ledger.', tier: 3, icon: { shape: 'mortar' } },
+  longDuskGlass: { id: 'longDuskGlass', name: 'Glass of the Long Dusk', price: 26, text: 'Long-dusk days. Last serve of the day +10%.', tier: 3, icon: { shape: 'longGlass' } },
+  fogCharter: { id: 'fogCharter', name: 'Charter of the Fog Guild', price: 26, text: 'Fog days: one optional bonus order. No penalty.', tier: 3, icon: { shape: 'charter' } },
+  crookedLadle: { id: 'crookedLadle', name: 'The Crooked Ladle', price: 20, text: 'Wobbling stir, variant stir sound. Cosmetic.', tier: 3, icon: { shape: 'crookedLadle' } },
+  bloodVial: { id: 'bloodVial', name: 'Vial of the Blood Moon', price: 26, text: 'Blood-moon rite days: the Critic visits twice.', tier: 3, icon: { shape: 'bloodVial' } },
 };
 
 // Tabel hari. Indeks 0 tidak dipakai agar DAY_TABLE[hari] langsung cocok.
@@ -228,8 +253,63 @@ export function recipeSizeFor(day, rng) {
 
 // Resep = multiset elemen dari pool yang sudah terbuka. Satu elemen dibatasi
 // maksimal 3 salinan agar resep selalu bisa dibuat dari deck (elemen baru
-// masuk deck 3 salinan).
-export function generateRecipe(day, rng) {
+// masuk deck 3 salinan). Bila famili signature aktif (keepsake tercatat),
+// peluang FAMILY_CHANCE resep memakai templat famili; tanpa famili aktif,
+// tidak ada undian tambahan — aliran RNG persis v2.
+export function generateRecipe(day, rng, families = []) {
+  return generateRecipeWithFamily(day, rng, families).recipe;
+}
+
+export function familyAvailable(familyId, day) {
+  const fam = SIGNATURE_FAMILIES[familyId];
+  if (!fam) return false;
+  if (day < fam.minDay) return false;
+  if (fam.maxDay !== undefined && day > fam.maxDay) return false;
+  return true;
+}
+
+function fillRecipe(recipe, counts, pool, size, rng, distinctOnly) {
+  let guard = 0;
+  while (recipe.length < size && guard < 200) {
+    guard += 1;
+    const el = pool[Math.floor(rng() * pool.length)];
+    if ((counts[el] || 0) >= RECIPE_MAX_REPEATS) continue;
+    if (distinctOnly && counts[el]) continue;
+    counts[el] = (counts[el] || 0) + 1;
+    recipe.push(el);
+  }
+  return recipe;
+}
+
+function generateFamilyRecipe(day, rng, fam) {
+  const pool = unlockedElements(day);
+  const cfg = dayConfig(day);
+  const counts = {};
+  const recipe = [];
+  if (fam.template === 'quad') {
+    recipe.push(fam.keys[0]);
+    counts[fam.keys[0]] = 1;
+    return fillRecipe(recipe, counts, pool, 4, rng, true);
+  }
+  const size = pickInt(rng, cfg.recipeMin, cfg.recipeMax);
+  if (fam.template === 'doubleKey') {
+    recipe.push(fam.keys[0], fam.keys[0]);
+    counts[fam.keys[0]] = 2;
+  } else {
+    for (const key of fam.keys) {
+      recipe.push(key);
+      counts[key] = 1;
+    }
+  }
+  return fillRecipe(recipe, counts, pool, size, rng, false);
+}
+
+export function generateRecipeWithFamily(day, rng, families = []) {
+  const active = (families || []).filter((id) => familyAvailable(id, day));
+  if (active.length > 0 && rng() < FAMILY_CHANCE) {
+    const fam = SIGNATURE_FAMILIES[active[Math.floor(rng() * active.length)]];
+    return { recipe: generateFamilyRecipe(day, rng, fam), family: fam.id };
+  }
   const pool = unlockedElements(day);
   const size = recipeSizeFor(day, rng);
   const counts = {};
@@ -242,7 +322,7 @@ export function generateRecipe(day, rng) {
     counts[el] = (counts[el] || 0) + 1;
     recipe.push(el);
   }
-  return recipe;
+  return { recipe, family: null };
 }
 
 export function sameMultiset(a, b) {
@@ -259,9 +339,10 @@ export function sameMultiset(a, b) {
 // HQ-5: kritik menempati slot kedatangan TETAP, bukan peluang. Slot dipilih
 // dari indeks kedatangan 1..quota-1 (0-based), jadi kritik dijamin muncul
 // sebelum kuota hari itu bisa tercapai. Deterministik per seed.
-export function planCriticSlots(day, rng) {
+// extraCritics (Vial of the Blood Moon): +1 slot kritik pada hari rite.
+export function planCriticSlots(day, rng, extraCritics = 0) {
   const cfg = dayConfig(day);
-  const n = cfg.critics;
+  const n = cfg.critics + extraCritics;
   if (n === 0) return [];
   const pool = [];
   for (let i = CRITIC_FIRST_SLOT_INDEX; i < cfg.quota; i += 1) pool.push(i);
@@ -304,17 +385,20 @@ export function serveScore(elementCount, comboAfter, catalystId) {
   return Math.round(score);
 }
 
-// Koin: 4 per elemen + relic ladle + koin bonus datar (cangkir elemen,
-// Honey Dipper), lalu pengali Seared (katalis Cinnabar; Searing Stone
-// 1.6), kritik x2 (HQ-5: koin saja; Critic's Seal 2.25), Purist +25%
-// (koin saja), dan bonus favorit regular +10% (plafon meta, Fase 2).
-// Panggilan lama tanpa opsi baru menghasilkan angka yang sama persis.
+// Koin: 4 per elemen + relic ladle, lalu pengali Seared (katalis Cinnabar),
+// kritik x2 (HQ-5: koin saja), Purist +25% (koin saja), bonus favorit
+// regular +10% (plafon meta, Fase 2), sajian terakhir hari +10% (Glass
+// of the Long Dusk), dan bonus dendam lunas +5% (Wax Seal). Satu
+// pembulatan di akhir. Panggilan lama tanpa opsi baru menghasilkan angka
+// yang sama persis.
 export function serveCoins(elementCount, opts = {}) {
-  let coins = 4 * elementCount + (opts.ladle ? 1 : 0) + (opts.bonusCoins || 0);
-  if (opts.seared) coins *= opts.searedMult || 1.5;
-  if (opts.critic) coins *= opts.criticMult || 2;
+  let coins = 4 * elementCount + (opts.ladle ? 1 : 0);
+  if (opts.seared) coins *= 1.5;
+  if (opts.critic) coins *= 2;
   if (opts.purist) coins *= 1.25;
   if (opts.favorite) coins *= 1.1;
+  if (opts.lastCustomer) coins *= GLASS_COIN_FACTOR;
+  if (opts.sealBonus) coins *= SEAL_COIN_FACTOR;
   return Math.round(coins);
 }
 
@@ -375,6 +459,11 @@ export function shopPool(upcomingDay, ownedRelics, ledgerCount = 0) {
   for (const u of Object.values(UTILITIES)) {
     pool.push({ kind: 'utility', id: u.id, price: u.price });
   }
+  // Tool bundle (Second Athanor): tawaran paket 3 utilitas, hanya saat
+  // Athanor dimiliki run ini. Bukan relic: tidak kena cap tawaran relic.
+  if (ownedRelics.includes('secondAthanor')) {
+    pool.push({ kind: 'bundle', id: 'toolBundle', price: TOOL_BUNDLE_PRICE });
+  }
   for (const r of Object.values(RELICS)) {
     if (ownedRelics.includes(r.id)) continue;
     if (r.minDay && upcomingDay < r.minDay) continue;
@@ -414,6 +503,7 @@ export function generateShopOffers(upcomingDay, ownedRelics, rng, ledgerCount = 
 export function offerTitle(offer) {
   if (offer.kind === 'reagent') return ELEMENT_BY_ID[offer.id].name;
   if (offer.kind === 'utility') return UTILITIES[offer.id].name;
+  if (offer.kind === 'bundle') return 'Tool Bundle';
   return RELICS[offer.id].name;
 }
 
@@ -423,6 +513,7 @@ export function offerText(offer) {
     return `Reagent card. Catalyst: ${el.catalyst}.`;
   }
   if (offer.kind === 'utility') return UTILITIES[offer.id].text;
+  if (offer.kind === 'bundle') return 'Stir, Cool and Purge cards for your deck.';
   return RELICS[offer.id].text;
 }
 
