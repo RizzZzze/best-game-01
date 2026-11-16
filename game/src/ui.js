@@ -54,7 +54,7 @@ import {
   moodColor,
   moodFor,
 } from './regulars.js';
-import { marketChipText, tomorrowChipText, tomorrowMarketFor } from './market.js';
+import { marketChipLines, tomorrowChipText, tomorrowMarketFor } from './market.js';
 
 export const LAYOUT = {
   startButton: { x: 490, y: 556, w: 300, h: 64 },
@@ -114,6 +114,17 @@ function drawTitleChip(ctx, text, x, y, alignRight, fontPx = 20) {
   drawText(ctx, text, left + w / 2, y + 21, { font: `${fontPx}px Georgia, serif`, align: 'center', color: PALETTE.creamDim });
 }
 
+function drawTitleChipLines(ctx, lines, x, y, alignRight, fontPx = 20) {
+  ctx.font = `${fontPx}px Georgia, serif`;
+  const w = Math.max(...lines.map((t) => ctx.measureText(t).width)) + 28;
+  const h = 30 + (lines.length - 1) * 24;
+  const left = alignRight ? x - w : x;
+  drawPanel(ctx, left, y, w, h, 15);
+  lines.forEach((text, i) => {
+    drawText(ctx, text, left + w / 2, y + 21 + i * 24, { font: `${fontPx}px Georgia, serif`, align: 'center', color: PALETTE.creamDim });
+  });
+}
+
 function drawTitle(ctx, state) {
   clearScreen(ctx, 1280, 720);
   // Chip meta sesi (Fase 2) di sudut atas — kolom tengah title tidak berubah.
@@ -127,7 +138,10 @@ function drawTitle(ctx, state) {
     16,
     true,
   );
-  drawTitleChip(ctx, marketChipText(state.dailyMarket), 1264, 52, true);
+  // TODAY'S MARKET dua-baris rata-kanan: chip satu-baris (±396px) tepi
+  // kirinya hanya 11px dari judul dan menumpuk di contact sheet (temuan
+  // Xora). Dua baris mempersempit blok (±220px) dengan celah besar.
+  drawTitleChipLines(ctx, marketChipLines(state.dailyMarket), 1264, 52, true);
   // Almanac of Borrowed Days: pratinjau pasar besok, satu hari lebih awal.
   // Kolom kiri, 18px + format ringkas (chip 20px 'ON DAY' menabrak judul di
   // kedua sisi — terverifikasi audit visual 2×; chip kini berakhir ±x400,

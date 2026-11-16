@@ -29,6 +29,13 @@ export function marketChipText(daily) {
   return `TODAY'S MARKET: ${DAY_THEMES[daily.themeIndex].name} ON DAY ${daily.day}`;
 }
 
+// Bentuk dua-baris untuk title (temuan Xora: chip satu-baris 396px
+// menumpuk judul di contact sheet). Baris 1 nama chip, baris 2 tema+hari.
+export function marketChipLines(daily) {
+  if (!daily) return ["TODAY'S MARKET", '—'];
+  return ["TODAY'S MARKET", `${DAY_THEMES[daily.themeIndex].name} · DAY ${daily.day}`];
+}
+
 // Pratinjau Almanac of Borrowed Days: variasi pasar BESOK, dihitung dari
 // tanggal kalender besok. Tanpa efek angka — hanya tampil di title saat
 // Almanac tercatat di Ledger.
