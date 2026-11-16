@@ -11,6 +11,8 @@ import {
   UTILITIES,
   dayConfig,
   deckComposition,
+  generateRecipe,
+  makeRng,
   offerText,
   offerTitle,
   rankFor,
@@ -88,6 +90,7 @@ function heartsLine(hearts, max) {
 
 function drawTitle(ctx, state) {
   clearScreen(ctx, 1280, 720);
+  drawTitleDemo(ctx, state);
   drawText(ctx, 'ALEMBIC RUSH', 640, 120, {
     font: '64px Georgia, serif',
     align: 'center',
@@ -543,4 +546,96 @@ function drawDeckCounts(ctx, state) {
   const y = 612;
   drawPanel(ctx, x, y, w, h, 17);
   drawText(ctx, text, x + w / 2, y + 23, { font: '20px Georgia, serif', align: 'center' });
+}
+
+// ---- Demo autoplay di belakang title (Fase D, di bawah deklarasi lama) ----
+// Adegan demo adalah fungsi MURNI dari waktu (state.animTime): antrean,
+// kauldron, dan tangan dibuat ulang tiap frame dari RNG demo yang dibuat
+// segar per siklus — TIDAK PERNAH menyentuh state.rng, state.visualRng,
+// atau field permainan apa pun. Demo digambar SANGAT redup (alpha 0,18 +
+// overlay gelap 0,65) di bawah konten title yang tidak berubah.
+
+const DEMO_SEED = 987654321;
+const DEMO_CYCLE_SEC = 12;
+const DEMO_ELEMENTS = ['cinnabar', 'moonwell', 'thornroot', 'hivegold', 'gloomcap', 'saltstar'];
+
+function demoStateFor(time) {
+  const phase = ((time % DEMO_CYCLE_SEC) + DEMO_CYCLE_SEC) % DEMO_CYCLE_SEC;
+  const cycle = Math.floor(time / DEMO_CYCLE_SEC);
+  const queue = [0, 1, 2].map((i) => {
+    const rng = makeRng((DEMO_SEED + cycle * 131 + i * 17) >>> 0);
+    const maxPatience = 28;
+    const frac = 1 - ((phase + i * 3.1) % DEMO_CYCLE_SEC) / DEMO_CYCLE_SEC;
+    return {
+      id: 900 + i,
+      recipe: generateRecipe(8, rng),
+      patience: Math.max(1, maxPatience * frac),
+      maxPatience,
+      critic: i === 2,
+      purist: i === 1,
+      warned: frac < 0.25,
+    };
+  });
+  const half = phase % 6;
+  const brewRng = makeRng((DEMO_SEED + cycle * 131 + 7) >>> 0);
+  const brew = generateRecipe(8, brewRng);
+  brew.push(DEMO_ELEMENTS[Math.floor(brewRng() * DEMO_ELEMENTS.length)]);
+  const filled = half < 4.8 ? Math.floor(half / 1.2) : 4;
+  const slots = [null, null, null, null];
+  for (let i = 0; i < filled; i += 1) slots[i] = brew[i];
+  const handRng = makeRng((DEMO_SEED + cycle * 131 + 3) >>> 0);
+  const hand = [];
+  for (let i = 0; i < 5; i += 1) {
+    hand.push(handRng() < 0.2 ? 'stir' : DEMO_ELEMENTS[Math.floor(handRng() * DEMO_ELEMENTS.length)]);
+  }
+  return {
+    day: 8,
+    animTime: time,
+    queue,
+    cauldron: { slots, catalyst: DEMO_ELEMENTS[((cycle % DEMO_ELEMENTS.length) + DEMO_ELEMENTS.length) % DEMO_ELEMENTS.length] },
+    hand,
+    selected: null,
+    mouse: null,
+    targetId: queue[0].id,
+    rejectFlash: 0,
+  };
+}
+
+// Kilat sajian demo: cincin mengembang + 8 sinar, fungsi murni waktu.
+// Aktif 0,8 detik di ujung tiap setengah siklus (saat brew "disajikan").
+function drawDemoFlash(ctx, time) {
+  const half = ((time % 6) + 6) % 6;
+  if (half < 5.2) return;
+  const p = (half - 5.2) / 0.8;
+  const radius = 40 + p * 130;
+  ctx.save();
+  ctx.globalAlpha = 0.8 * (1 - p);
+  ctx.strokeStyle = '#e8a558';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(640, 400, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i * Math.PI) / 4;
+    ctx.beginPath();
+    ctx.moveTo(640 + Math.cos(a) * (radius - 14), 400 + Math.sin(a) * (radius - 14));
+    ctx.lineTo(640 + Math.cos(a) * (radius + 14), 400 + Math.sin(a) * (radius + 14));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTitleDemo(ctx, state) {
+  const time = state.animTime || 0;
+  const demo = demoStateFor(time);
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  drawBackground(ctx, demo);
+  drawCustomers(ctx, demo);
+  drawCauldron(ctx, demo);
+  drawHand(ctx, demo);
+  drawDemoFlash(ctx, time);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(15,10,6,0.65)';
+  ctx.fillRect(0, 0, 1280, 720);
 }
