@@ -110,9 +110,29 @@ export const UNLOCK_DAY = {
   saltstar: 7,
 };
 
-// AMENDMEN BRIEF (putusan Xora, tuning Tahap 1): tiap elemen baru menambah
-// 5 kopi ke deck (semula 3). Deck dasar: 12/17/22/27 kartu di hari 1/3/5/7.
-export const UNLOCK_COPIES = 5;
+// AMENDMEN BRIEF — DICABUT (putusan Xora, Stage 3): UNLOCK_COPIES sempat
+// 5 pada tuning Tahap 1, tetapi simulasi membuktikan 5 kopi memperburuk
+// pengenceran elemen dasar (deck lebih besar, P(tangan tanpa cinnabar)
+// naik 30%→42% di hari 7+, P(tangan mati) tidak membaik). Kembali ke 3,
+// sesuai brief awal. Deck dasar: 12/15/18/21 kartu di hari 1/3/5/7.
+export const UNLOCK_COPIES = 3;
+
+// Mulligan (Stage 3): biaya dasar 2 koin; tagihan = min(biaya, koin) —
+// koin tidak pernah minus, mulligan selalu bisa dipakai. Eskalasi 3b
+// DITOLAK BERDASARKAN DATA (MULLIGAN_ESCALATION=false): pada simulasi
+// 300 run/persona, eskalasi 2/4/8/16 menjatuhkan win rate skilled ke
+// 38,7% (di bawah pita 40–85%), fraksi tunggu buntu naik ke 32,4%/
+// 47,0% (skilled/optimal), dan median mulligan optimal tetap 443
+// (jauh di atas pita 30) — lantai min(biaya, koin) membuat redraw tetap
+// gratis saat koin habis. Biaya DATAR 2 dipertahankan sebagai konfigurasi
+// final. mulliganCostFor tetap ada agar eksperimen eskalasi terdokumentasi.
+export const MULLIGAN_BASE_COST = 2;
+export const MULLIGAN_MAX_COST = 16;
+export const MULLIGAN_ESCALATION = false;
+export function mulliganCostFor(streak) {
+  if (!MULLIGAN_ESCALATION) return MULLIGAN_BASE_COST;
+  return Math.min(MULLIGAN_BASE_COST * 2 ** streak, MULLIGAN_MAX_COST);
+}
 
 export function unlockedElements(day) {
   return ELEMENTS.filter((e) => UNLOCK_DAY[e.id] <= day).map((e) => e.id);
@@ -330,6 +350,6 @@ export const TITLE_CONTROLS = [
   'Click the catalyst slot to place the selected card as catalyst.',
   'Click a filled slot to return its card to your hand.',
   'Click a customer to target them for the next serve.',
-  'R = mulligan: discard your whole hand and draw 5 new cards (combo resets).',
+  'R = mulligan: discard your whole hand, draw 5 new cards (2 coins, combo resets).',
   'Space = brew, X = dump, R = mulligan, M = mute, P = pause.',
 ];

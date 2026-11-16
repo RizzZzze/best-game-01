@@ -127,6 +127,9 @@ export function resolveBrew(state) {
   });
   state.score += scoreGained;
   state.coins += coinsGained;
+  state.coinsEarned = (state.coinsEarned || 0) + coinsGained;
+  // Sajian berhasil mereset streak mulligan (biaya eskalasi 3b kembali ke 2).
+  state.mulliganStreak = 0;
 
   const removed = discardBrew(state.cauldron);
   state.discard.push(...removed);

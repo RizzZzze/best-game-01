@@ -33,6 +33,7 @@ import {
   isElement,
   isUtility,
   makeRng,
+  mulliganCostFor,
   newlyUnlocked,
   planCriticSlots,
   plannedArrivals,
@@ -137,6 +138,11 @@ export function createState(seed = 1) {
     rejectFlash: 0,
     animTime: 0,
     bubbleTimer: 0,
+    // Pelacakan mulligan/ekonomi run (untuk metrik + eskalasi biaya 3b).
+    mulliganCount: 0,
+    mulliganSpend: 0,
+    mulliganStreak: 0,
+    coinsEarned: 0,
   };
   return state;
 }
@@ -165,6 +171,10 @@ export function startNewRun(state, seed = null) {
   state.notice = null;
   state.noticeLeft = 0;
   state.rejectFlash = 0;
+  state.mulliganCount = 0;
+  state.mulliganSpend = 0;
+  state.mulliganStreak = 0;
+  state.coinsEarned = 0;
   state.introNotes = introNotesFor(1);
   resetCustomerIds();
   state.particles.clear();
@@ -216,6 +226,7 @@ export function finishDay(state) {
   if (perfect) {
     state.score += 50;
     state.coins += 10;
+    state.coinsEarned = (state.coinsEarned || 0) + 10;
   }
   state.dayStats = { served: state.servedToday, lost: state.lostToday, perfect };
   if (state.day >= TOTAL_DAYS) {
@@ -285,19 +296,26 @@ export function dumpCauldron(state) {
   return { status: 'dumped', removed };
 }
 
-// Mulligan tombol R (AMENDMEN BRIEF, putusan Xora, tuning Tahap 2): buang
+// Mulligan tombol R (AMENDMEN BRIEF, tuning Tahap 2; biaya Stage 3): buang
 // SELURUH tangan lalu tarik 5 kartu baru dari deck (reshuffle discard bila
-// deck kurang), combo RESET, kauldron TIDAK tersentuh, tanpa biaya lain.
+// deck kurang), combo RESET, kauldron TIDAK tersentuh. Biaya = min(biaya
+// saat ini, koin) — koin tidak pernah minus, mulligan selalu bisa dipakai.
 // Boleh dipakai kapan saja saat play (tidak saat pause/layar lain).
 export function mulligan(state) {
   if (state.screen !== 'play' || state.paused) return state;
+  const cost = mulliganCostFor(state.mulliganStreak || 0);
+  const charge = Math.min(cost, state.coins);
+  state.coins -= charge;
+  state.mulliganSpend = (state.mulliganSpend || 0) + charge;
+  state.mulliganCount = (state.mulliganCount || 0) + 1;
+  state.mulliganStreak = (state.mulliganStreak || 0) + 1;
   const discarded = state.hand.slice();
   state.discard.push(...discarded);
   state.hand = [];
   state.selected = null;
   drawCards(state.hand, state.deck, state.discard, HAND_SIZE, state.rng);
   state.combo = 0;
-  setNotice(state, 'Mulligan — fresh hand, combo reset.');
+  setNotice(state, `Mulligan — fresh hand, combo reset (-${charge} coins).`);
   return state;
 }
 
