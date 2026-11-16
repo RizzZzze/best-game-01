@@ -133,6 +133,8 @@ export function createState(seed = 1) {
     notice: null,
     noticeLeft: 0,
     rejectFlash: 0,
+    animTime: 0,
+    bubbleTimer: 0,
   };
   return state;
 }
@@ -315,6 +317,7 @@ export function activateUtilityCard(state, index) {
 // dipanggil langsung dari tes headless.
 export function update(state, dt) {
   if (state.paused) return state;
+  state.animTime = (state.animTime || 0) + dt;
   if (state.noticeLeft > 0) state.noticeLeft = Math.max(0, state.noticeLeft - dt);
   if (state.rejectFlash > 0) state.rejectFlash = Math.max(0, state.rejectFlash - dt);
   if (state.screen !== 'play') return state;
@@ -363,6 +366,21 @@ export function update(state, dt) {
   }
   if (state.servedToday >= cfg.quota) {
     return finishDay(state);
+  }
+  // Emisi gelembung kauldron: warna dari elemen yang sedang terisi.
+  // Math.random (bukan state.rng) agar visual tidak menggeser resep/antrean.
+  const filled = state.cauldron.slots.filter(Boolean);
+  if (filled.length > 0) {
+    state.bubbleTimer += dt;
+    if (state.bubbleTimer >= 0.15) {
+      state.bubbleTimer = 0;
+      const cardId = filled[Math.floor(Math.random() * filled.length)];
+      state.particles.spawnBubble(
+        640 + (Math.random() - 0.5) * 90,
+        430,
+        ELEMENT_BY_ID[cardId].color,
+      );
+    }
   }
   state.particles.update(dt);
   return state;

@@ -3,6 +3,7 @@
 // juga oleh main.js untuk hit-test klik.
 
 import {
+  ELEMENTS,
   ELEMENT_BY_ID,
   PLAY_CONTROLS_LINE,
   RELICS,
@@ -16,11 +17,20 @@ import {
 } from './rules.js';
 import {
   PALETTE,
+  SILHOUETTE_ACCENTS,
   clearScreen,
   drawButton,
-  drawElementDisc,
+  drawCauldronHalo,
+  drawCauldronLiquid,
+  drawElementGlyph,
+  drawOrnamentRow,
   drawPanel,
+  drawRelicIcon,
+  drawSilhouette,
   drawText,
+  drawUtilityGlyph,
+  drawVignette,
+  mixElementColors,
 } from './render.js';
 
 export const LAYOUT = {
@@ -89,6 +99,7 @@ function drawTitle(ctx, state) {
     drawText(ctx, line, 640, y, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
     y += 30;
   }
+  drawOrnamentRow(ctx, ELEMENTS, 640, 495, 16);
   drawButton(ctx, LAYOUT.startButton, 'START', { fill: '#6b4423' });
   drawText(ctx, `Best score: ${state.bestScore}`, 640, 660, {
     font: '20px Georgia, serif',
@@ -123,6 +134,7 @@ function drawDayIntro(ctx, state) {
     y + 10,
     { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim },
   );
+  drawOrnamentRow(ctx, ELEMENTS, 640, 430, 16);
   drawButton(ctx, LAYOUT.beginButton, 'BEGIN SHIFT', { fill: '#6b4423' });
   drawText(ctx, `Score: ${state.score}   Coins: ${state.coins}   Hearts: ${heartsLine(state.hearts, 5)}`, 640, 640, {
     font: '20px Georgia, serif',
@@ -145,12 +157,12 @@ function drawCustomers(ctx, state) {
     const y = base.y;
     drawPanel(ctx, x, y, base.w, base.h, 12);
     const fraction = customer.maxPatience > 0 ? customer.patience / customer.maxPatience : 0;
+    drawSilhouette(ctx, x + 40, y + 40, 22, SILHOUETTE_ACCENTS[customer.id % SILHOUETTE_ACCENTS.length]);
     ctx.strokeStyle = patienceColor(fraction);
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(x + 40, y + 40, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fraction);
     ctx.stroke();
-    drawText(ctx, '◉', x + 40, y + 48, { font: '24px Georgia, serif', align: 'center' });
     const tag = customer.critic ? 'CRITIC' : customer.purist ? 'PURIST' : 'GUEST';
     drawText(ctx, tag, x + 80, y + 36, { font: '20px Georgia, serif', color: PALETTE.copperBright });
     drawText(ctx, `${Math.ceil(customer.patience)}s`, x + 80, y + 62, {
@@ -168,7 +180,7 @@ function drawCustomers(ctx, state) {
       });
     }
     customer.recipe.forEach((elId, j) => {
-      drawElementDisc(ctx, ELEMENT_BY_ID[elId], x + 34 + j * 52, y + 108, 20);
+      drawElementGlyph(ctx, ELEMENT_BY_ID[elId], x + 34 + j * 52, y + 108, 20);
     });
   });
 }
@@ -177,24 +189,36 @@ function drawCauldron(ctx, state) {
   const shake = state.rejectFlash > 0 ? Math.sin(state.rejectFlash * 30) * 5 : 0;
   const cx = 640 + shake;
   const cy = 400;
+  const slots = state.cauldron ? state.cauldron.slots : [];
+  const filled = slots.filter(Boolean).map((cardId) => ELEMENT_BY_ID[cardId]);
+  const mixColor = mixElementColors(filled);
+  drawCauldronHalo(ctx, cx, cy, 86, mixColor);
   ctx.fillStyle = '#0f0a06';
   ctx.beginPath();
   ctx.arc(cx, cy, 86, 0, Math.PI * 2);
   ctx.fill();
+  drawCauldronLiquid(ctx, cx, cy, 86, mixColor, state.animTime || 0);
   ctx.strokeStyle = PALETTE.copper;
   ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 86, 0, Math.PI * 2);
   ctx.stroke();
   drawText(ctx, 'CAULDRON', cx, cy - 96, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
-  const slots = state.cauldron ? state.cauldron.slots : [];
   slots.forEach((cardId, i) => {
     const rect = cauldronSlotRect(slots.length, i);
     drawPanel(ctx, rect.x + shake, rect.y, rect.w, rect.h, 8);
-    if (cardId) drawElementDisc(ctx, ELEMENT_BY_ID[cardId], rect.x + shake + 26, cy, 20);
+    if (cardId) drawElementGlyph(ctx, ELEMENT_BY_ID[cardId], rect.x + shake + 26, cy, 20);
   });
   drawPanel(ctx, CATALYST_RECT.x, CATALYST_RECT.y, CATALYST_RECT.w, CATALYST_RECT.h, 8);
   drawText(ctx, 'CATALYST', CATALYST_RECT.x + CATALYST_RECT.w / 2, CATALYST_RECT.y - 10, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
   if (state.cauldron && state.cauldron.catalyst) {
-    drawElementDisc(ctx, ELEMENT_BY_ID[state.cauldron.catalyst], CATALYST_RECT.x + CATALYST_RECT.w / 2, cy, 20);
+    const el = ELEMENT_BY_ID[state.cauldron.catalyst];
+    ctx.strokeStyle = el.glow;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(CATALYST_RECT.x + CATALYST_RECT.w / 2, cy, 27, 0, Math.PI * 2);
+    ctx.stroke();
+    drawElementGlyph(ctx, el, CATALYST_RECT.x + CATALYST_RECT.w / 2, cy, 20);
   }
 }
 
@@ -209,13 +233,17 @@ function drawHand(ctx, state) {
       ctx.strokeStyle = PALETTE.copperBright;
       ctx.lineWidth = 3;
       ctx.strokeRect(x - 56, y - 4, 112, 138);
+      ctx.fillStyle = 'rgba(232,165,88,0.15)';
+      ctx.beginPath();
+      ctx.arc(x, y + 46, 34, 0, Math.PI * 2);
+      ctx.fill();
     }
     if (ELEMENT_BY_ID[cardId]) {
-      drawElementDisc(ctx, ELEMENT_BY_ID[cardId], x, y + 46, 26);
+      drawElementGlyph(ctx, ELEMENT_BY_ID[cardId], x, y + 46, 26);
       drawText(ctx, ELEMENT_BY_ID[cardId].name, x, y + 104, { font: '20px Georgia, serif', align: 'center' });
     } else if (UTILITIES[cardId]) {
-      drawText(ctx, UTILITIES[cardId].name, x, y + 56, { font: '22px Georgia, serif', align: 'center' });
-      drawText(ctx, 'utility', x, y + 86, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+      drawUtilityGlyph(ctx, cardId, x, y + 46, 26);
+      drawText(ctx, UTILITIES[cardId].name, x, y + 104, { font: '20px Georgia, serif', align: 'center' });
     }
   });
 }
@@ -240,6 +268,7 @@ function drawPlay(ctx, state) {
   drawCustomers(ctx, state);
   drawCauldron(ctx, state);
   drawHand(ctx, state);
+  if (state.particles) state.particles.draw(ctx);
   drawText(ctx, PLAY_CONTROLS_LINE, 640, 700, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
   if (state.notice && state.noticeLeft > 0 && !state.paused) {
     drawText(ctx, state.notice, 640, 276, { font: '22px Georgia, serif', align: 'center', color: PALETTE.copperBright });
@@ -317,6 +346,10 @@ function drawDayResult(ctx, state) {
         color: PALETTE.creamDim,
       });
     });
+    const iconX = rect.x + rect.w / 2;
+    if (offer.kind === 'reagent') drawElementGlyph(ctx, ELEMENT_BY_ID[offer.id], iconX, rect.y + 152, 22);
+    else if (offer.kind === 'utility') drawUtilityGlyph(ctx, offer.id, iconX, rect.y + 152, 22);
+    else drawRelicIcon(ctx, offer.id, iconX, rect.y + 152, 22);
     drawText(ctx, `${offer.price} coins  [${i + 1}]`, rect.x + rect.w / 2, rect.y + 200, {
       font: '22px Georgia, serif',
       align: 'center',
@@ -336,6 +369,7 @@ function drawWin(ctx, state) {
   drawText(ctx, `Final score: ${state.score}`, 640, 300, { font: '28px Georgia, serif', align: 'center' });
   drawText(ctx, `Rank: ${rankFor(state.score)}`, 640, 360, { font: '44px Georgia, serif', align: 'center' });
   drawText(ctx, `Best score: ${state.bestScore}`, 640, 420, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+  drawOrnamentRow(ctx, ELEMENTS, 640, 472, 14);
   drawButton(ctx, LAYOUT.playAgainButton, 'PLAY AGAIN', { fill: '#6b4423' });
 }
 
@@ -351,6 +385,7 @@ function drawGameOver(ctx, state) {
     align: 'center',
   });
   drawText(ctx, `Best score: ${state.bestScore}`, 640, 350, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+  drawOrnamentRow(ctx, ELEMENTS, 640, 440, 14);
   drawButton(ctx, LAYOUT.playAgainButton, 'PLAY AGAIN', { fill: '#6b4423' });
 }
 
@@ -369,5 +404,6 @@ export function drawScreen(ctx, state) {
   else if (state.screen === 'dayResult') drawDayResult(ctx, state);
   else if (state.screen === 'win') drawWin(ctx, state);
   else if (state.screen === 'gameover') drawGameOver(ctx, state);
+  drawVignette(ctx, 1280, 720);
   if (state.paused && state.screen === 'play') drawPauseOverlay(ctx);
 }
