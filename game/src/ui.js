@@ -1,6 +1,6 @@
 // ui.js — HUD, menu, dan semua layar. Satu-satunya file yang menggambar
 // teks layar penuh. LAYOUT adalah sumber tunggal koordinat tombol, dipakai
-// juga oleh main.js untuk hit-test klik.
+// juga oleh states.js untuk hit-test klik.
 
 import {
   ELEMENTS,
@@ -17,29 +17,33 @@ import {
 } from './rules.js';
 import {
   PALETTE,
-  SILHOUETTE_ACCENTS,
   clearScreen,
   drawBackground,
   drawButton,
-  drawCardFrame,
-  drawCauldronBlobs,
-  drawCauldronHalo,
-  drawCauldronLiquid,
-  drawCustomerPortrait,
-  drawElementGlyph,
-  drawGlyphEmbossed,
-  drawOrnamentRow,
   drawPanel,
-  drawRelicIcon,
-  drawSilhouette,
-  drawSteam,
   drawText,
-  drawUtilityGlyph,
   drawVignette,
   mixElementColors,
   pointInRect,
   themeFor,
-} from './render.js';
+} from './render_scene.js';
+import {
+  drawCardFrame,
+  drawElementGlyph,
+  drawGlyphEmbossed,
+  drawOrnamentRow,
+  drawRelicIcon,
+  drawUtilityGlyph,
+} from './render_cards.js';
+import {
+  SILHOUETTE_ACCENTS,
+  drawCauldronBlobs,
+  drawCauldronHalo,
+  drawCauldronLiquid,
+  drawCustomerPortrait,
+  drawSilhouette,
+  drawSteam,
+} from './render_entities.js';
 
 export const LAYOUT = {
   startButton: { x: 490, y: 556, w: 300, h: 64 },
