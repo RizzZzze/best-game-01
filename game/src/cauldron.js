@@ -6,6 +6,7 @@
 // umpan balik visual).
 
 import {
+  ELEMENT_BY_ID,
   FREEZE_SEC,
   HAND_SIZE,
   MAX_HEARTS,
@@ -163,6 +164,13 @@ export function resolveBrew(state) {
   state.notice = `Served! ${reaction}+${scoreGained} score, +${coinsGained} coins.`;
   state.noticeLeft = NOTICE_DURATION_SEC;
   state.audio.chime();
-  state.particles.spawnSplash(640, 400, elements);
+  // Burst visual sajian: splash warna elemen + teks koin mengambang +
+  // flare kombo. Visual murni — tidak mengubah satu pun field permainan.
+  const splashColors = elements.map((id) => ELEMENT_BY_ID[id].color);
+  state.particles.spawnSplash(640, 400, splashColors, state.visualRng, 24);
+  state.particles.spawnFloater(`+${coinsGained} coins`, 640, 330, '#e8a558');
+  if (state.combo >= 2) {
+    state.particles.spawnFlare(640, 400, '#e8a558', 120 + state.combo * 10);
+  }
   return { status: 'served', targetId: target.id, scoreGained, coinsGained, catalyst, freshDrawn };
 }

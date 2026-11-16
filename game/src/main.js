@@ -63,7 +63,7 @@ import {
   handCardRect,
   shopCardRect,
 } from './ui.js';
-import { pointInRect } from './render.js';
+import { pointInRect, themeFor } from './render.js';
 
 const BEST_KEY = 'alembic-rush-best';
 
@@ -105,6 +105,10 @@ export function createState(seed = 1) {
     paused: false,
     seed: seed >>> 0,
     rng: makeRng(seed),
+    // RNG visual terpisah (gelembung, ambient, burst): tidak pernah
+    // menggeser aliran RNG permainan, dan deterministik per seed.
+    visualRng: makeRng((seed ^ 0x5f356495) >>> 0),
+    mouse: null,
     bestScore: loadBestScore(),
     audio: new AudioEngine(),
     particles: new ParticleSystem(),
@@ -138,6 +142,9 @@ export function createState(seed = 1) {
     rejectFlash: 0,
     animTime: 0,
     bubbleTimer: 0,
+    ambientTimer: 0,
+    eventBanner: null,
+    eventBannerLeft: 0,
     // Pelacakan mulligan/ekonomi run (untuk metrik + eskalasi biaya 3b).
     mulliganCount: 0,
     mulliganSpend: 0,
@@ -152,6 +159,11 @@ export function startNewRun(state, seed = null) {
   const nextSeed = seed === null ? (state.seed + 7919) >>> 0 : seed >>> 0;
   state.seed = nextSeed;
   state.rng = makeRng(nextSeed);
+  state.visualRng = makeRng((nextSeed ^ 0x5f356495) >>> 0);
+  state.mouse = null;
+  state.eventBanner = null;
+  state.eventBannerLeft = 0;
+  state.ambientTimer = 0;
   state.screen = 'dayIntro';
   state.paused = false;
   state.day = 1;
@@ -356,6 +368,7 @@ export function update(state, dt) {
   state.animTime = (state.animTime || 0) + dt;
   if (state.noticeLeft > 0) state.noticeLeft = Math.max(0, state.noticeLeft - dt);
   if (state.rejectFlash > 0) state.rejectFlash = Math.max(0, state.rejectFlash - dt);
+  if (state.eventBannerLeft > 0) state.eventBannerLeft = Math.max(0, state.eventBannerLeft - dt);
   if (state.screen !== 'play') return state;
   if (state.freezeLeft > 0) {
     state.freezeLeft = Math.max(0, state.freezeLeft - dt);
@@ -394,8 +407,12 @@ export function update(state, dt) {
     state.arrivalsSpawned < state.arrivalsPlanned
   ) {
     state.spawnTimer = 0;
-    spawnNext(state.queue, state.day, state.rng, state.arrivalsSpawned, state.criticSlots);
+    const spawned = spawnNext(state.queue, state.day, state.rng, state.arrivalsSpawned, state.criticSlots);
     state.arrivalsSpawned += 1;
+    if (spawned && spawned.critic) {
+      state.eventBanner = '★ A CRITIC ARRIVES — double coins, half patience!';
+      state.eventBannerLeft = 3;
+    }
     if (state.targetId === null && state.queue.length > 0) {
       state.targetId = state.queue[0].id;
     }
@@ -418,18 +435,35 @@ export function update(state, dt) {
     return finishDay(state);
   }
   // Emisi gelembung kauldron: warna dari elemen yang sedang terisi.
-  // Math.random (bukan state.rng) agar visual tidak menggeser resep/antrean.
+  // RNG visual (bukan state.rng) agar visual tidak menggeser resep/antrean.
   const filled = state.cauldron.slots.filter(Boolean);
+  const vrng = state.visualRng || Math.random;
   if (filled.length > 0) {
     state.bubbleTimer += dt;
     if (state.bubbleTimer >= 0.15) {
       state.bubbleTimer = 0;
-      const cardId = filled[Math.floor(Math.random() * filled.length)];
+      const cardId = filled[Math.floor(vrng() * filled.length)];
       state.particles.spawnBubble(
-        640 + (Math.random() - 0.5) * 90,
+        640 + (vrng() - 0.5) * 90,
         430,
         ELEMENT_BY_ID[cardId].color,
+        vrng,
       );
+    }
+  }
+  // Partikel ambient tema (hujan/ember/mote) lewat RNG visual yang sama.
+  const theme = themeFor(state.day);
+  state.ambientTimer += dt;
+  if (state.ambientTimer >= 0.12) {
+    state.ambientTimer = 0;
+    if (theme.ambient === 'rain') {
+      // Hujan butuh kerapatan ganda agar terbaca sebagai hujan.
+      state.particles.spawnAmbient('rain', vrng() * 1280, -10, vrng, theme.ambientColor);
+      state.particles.spawnAmbient('rain', vrng() * 1280, -10, vrng, theme.ambientColor);
+    } else if (theme.ambient === 'ember') {
+      state.particles.spawnAmbient('ember', vrng() * 1280, 730, vrng, theme.ambientColor);
+    } else {
+      state.particles.spawnAmbient('mote', vrng() * 1280, 100 + vrng() * 500, vrng, theme.ambientColor);
     }
   }
   state.particles.update(dt);
@@ -582,6 +616,14 @@ export function boot(canvas) {
   try {
     if (new URLSearchParams(window.location.search).get('test') === '1') {
       window.__alembic = state;
+      // Pabrik RNG untuk staging deterministik (reset aliran visual).
+      window.__alembicRng = makeRng;
+      // Stepper deterministik: satu update + render per panggilan, agar
+      // capture dengan jam beku dapat melangkah dalam jumlah frame tetap.
+      window.__alembicStep = (dt) => {
+        update(state, dt);
+        drawScreen(ctx, state);
+      };
     }
   } catch {
     // Abaikan: hook tes tidak tersedia di konteks ini.
@@ -595,6 +637,9 @@ export function boot(canvas) {
     onKey: (key) => {
       state.audio.unlock();
       handleKey(state, key);
+    },
+    onHover: (x, y) => {
+      state.mouse = { x, y };
     },
   });
   let last = performance.now();

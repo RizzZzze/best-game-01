@@ -1,6 +1,10 @@
-// particles.js — gelembung kauldron + splash sajian.
-// Visual murni: semua keacakan memakai Math.random agar tidak menggeser
-// aliran RNG permainan (state.rng) yang menentukan resep/antrean.
+// particles.js — gelembung kauldron + splash sajian + teks mengambang +
+// flare kombo + partikel ambient tema.
+// Visual murni: semua keacakan memakai RNG visual (state.visualRng) yang
+// dilewatkan pemanggil agar tidak menggeser aliran RNG permainan
+// (state.rng) yang menentukan resep/antrean, dan agar capture dengan seed
+// sama deterministik. Math.random hanya default bila pemanggil tidak
+// menyediakan RNG (penggunaan mandiri di luar state).
 
 const MAX_PARTICLES = 120;
 
@@ -9,28 +13,28 @@ export class ParticleSystem {
     this.particles = [];
   }
 
-  spawnBubble(x, y, color) {
+  spawnBubble(x, y, color, rng = Math.random) {
     if (this.particles.length >= MAX_PARTICLES) return;
     this.particles.push({
       kind: 'bubble',
-      x: x + (Math.random() - 0.5) * 8,
+      x: x + (rng() - 0.5) * 8,
       y,
       vx: 0,
-      vy: -28 - Math.random() * 22,
-      wobblePhase: Math.random() * Math.PI * 2,
-      life: 1.1 + Math.random() * 0.5,
+      vy: -28 - rng() * 22,
+      wobblePhase: rng() * Math.PI * 2,
+      life: 1.1 + rng() * 0.5,
       maxLife: 1.6,
-      radius: 3 + Math.random() * 5,
+      radius: 4 + rng() * 6,
       color,
     });
   }
 
-  spawnSplash(x, y, colors) {
+  spawnSplash(x, y, colors, rng = Math.random, count = 14) {
     const palette = colors && colors.length > 0 ? colors : ['#e8a558'];
-    for (let i = 0; i < 14; i += 1) {
+    for (let i = 0; i < count; i += 1) {
       if (this.particles.length >= MAX_PARTICLES) return;
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 60 + Math.random() * 110;
+      const angle = rng() * Math.PI * 2;
+      const speed = 60 + rng() * 110;
       this.particles.push({
         kind: 'splash',
         x,
@@ -38,10 +42,83 @@ export class ParticleSystem {
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 60,
         wobblePhase: 0,
-        life: 0.55 + Math.random() * 0.3,
+        life: 0.55 + rng() * 0.3,
         maxLife: 0.85,
-        radius: 2.5 + Math.random() * 3.5,
+        radius: 2.5 + rng() * 3.5,
         color: palette[i % palette.length],
+      });
+    }
+  }
+
+  // Teks mengambang (mis. "+12 coins") yang naik lalu memudar. Tanpa RNG.
+  spawnFloater(text, x, y, color) {
+    if (this.particles.length >= MAX_PARTICLES) return;
+    this.particles.push({
+      kind: 'floater',
+      text,
+      x,
+      y,
+      vx: 0,
+      vy: -34,
+      wobblePhase: 0,
+      life: 1.2,
+      maxLife: 1.2,
+      radius: 0,
+      color,
+    });
+  }
+
+  // Flare kombo: cincin mengembang + 8 sinar. Tanpa RNG.
+  spawnFlare(x, y, color, maxRadius = 130) {
+    if (this.particles.length >= MAX_PARTICLES) return;
+    this.particles.push({
+      kind: 'flare',
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      wobblePhase: 0,
+      life: 0.5,
+      maxLife: 0.5,
+      radius: 20,
+      maxRadius,
+      color,
+    });
+  }
+
+  // Partikel ambient tema: 'rain' (jatuh cepat), 'ember' (naik, berkelip),
+  // 'mote' (melayang lambat). Posisi awal dipilih pemanggil.
+  spawnAmbient(kind, x, y, rng = Math.random, color = '#e8c890') {
+    if (this.particles.length >= MAX_PARTICLES) return;
+    const base = {
+      kind, x, y, wobblePhase: rng() * Math.PI * 2, color,
+    };
+    if (kind === 'rain') {
+      this.particles.push({
+        ...base,
+        vx: -30 - rng() * 30,
+        vy: 380 + rng() * 140,
+        life: 2,
+        maxLife: 2,
+        radius: 1.5,
+      });
+    } else if (kind === 'ember') {
+      this.particles.push({
+        ...base,
+        vx: (rng() - 0.5) * 16,
+        vy: -30 - rng() * 30,
+        life: 2.5 + rng() * 1.5,
+        maxLife: 4,
+        radius: 1.5 + rng() * 2,
+      });
+    } else {
+      this.particles.push({
+        ...base,
+        vx: (rng() - 0.5) * 20,
+        vy: -8 - rng() * 8,
+        life: 4 + rng() * 2,
+        maxLife: 6,
+        radius: 1.5 + rng() * 2,
       });
     }
   }
@@ -55,6 +132,20 @@ export class ParticleSystem {
         p.wobblePhase += dt * 4;
         p.x += Math.sin(p.wobblePhase) * 14 * dt;
         p.y += p.vy * dt;
+      } else if (p.kind === 'flare') {
+        const progress = 1 - p.life / p.maxLife;
+        p.radius = 20 + (p.maxRadius - 20) * (1 - (1 - progress) * (1 - progress));
+      } else if (p.kind === 'floater') {
+        p.y += p.vy * dt;
+      } else if (p.kind === 'rain') {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (p.y > 724) continue;
+      } else if (p.kind === 'ember' || p.kind === 'mote') {
+        p.wobblePhase += dt * 2;
+        p.x += (p.vx + Math.sin(p.wobblePhase) * 10) * dt;
+        p.y += p.vy * dt;
+        if (p.y < -8) continue;
       } else {
         p.vy += 260 * dt;
         p.x += p.vx * dt;
@@ -70,6 +161,12 @@ export class ParticleSystem {
       const alpha = Math.max(0, Math.min(1, p.life / (p.maxLife * 0.5)));
       ctx.globalAlpha = alpha;
       if (p.kind === 'bubble') {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = alpha * 0.18;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = alpha;
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -78,6 +175,57 @@ export class ParticleSystem {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.beginPath();
         ctx.arc(p.x - p.radius * 0.3, p.y - p.radius * 0.3, p.radius * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.kind === 'flare') {
+        const progress = 1 - p.life / p.maxLife;
+        ctx.globalAlpha = (1 - progress) * 0.9;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 3 - progress * 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = (1 - progress) * 0.55;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 8; i += 1) {
+          const a = (i * Math.PI) / 4 + progress * 0.5;
+          ctx.beginPath();
+          ctx.moveTo(p.x + Math.cos(a) * p.radius * 0.7, p.y + Math.sin(a) * p.radius * 0.7);
+          ctx.lineTo(p.x + Math.cos(a) * p.radius, p.y + Math.sin(a) * p.radius);
+          ctx.stroke();
+        }
+      } else if (p.kind === 'floater') {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, (p.life / p.maxLife) * 2);
+        ctx.font = '24px Georgia, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.text, p.x, p.y);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      } else if (p.kind === 'rain') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03);
+        ctx.stroke();
+      } else if (p.kind === 'ember') {
+        const flicker = 0.6 + 0.4 * Math.sin(p.wobblePhase * 3);
+        ctx.globalAlpha = alpha * 0.25 * flicker;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = alpha * flicker;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.kind === 'mote') {
+        ctx.globalAlpha = alpha * 0.35;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
         ctx.fill();
       } else {
         ctx.fillStyle = p.color;

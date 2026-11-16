@@ -428,7 +428,8 @@ export function drawCauldronLiquid(ctx, cx, cy, radius, mixColor, time) {
     return;
   }
   const g = ctx.createLinearGradient(0, cy - radius, 0, cy + radius);
-  g.addColorStop(0, mixColor);
+  g.addColorStop(0, brightenRgb(mixColor, 1.3));
+  g.addColorStop(0.35, mixColor);
   g.addColorStop(1, shadeRgb(mixColor, 0.55));
   ctx.fillStyle = g;
   const surfY = cy - radius * 0.18;
@@ -440,7 +441,7 @@ export function drawCauldronLiquid(ctx, cx, cy, radius, mixColor, time) {
   ctx.lineTo(cx + radius, cy + radius);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
   ctx.lineWidth = 2;
   ctx.beginPath();
   for (let px = -radius; px <= radius; px += 8) {
@@ -455,16 +456,29 @@ export function drawCauldronLiquid(ctx, cx, cy, radius, mixColor, time) {
 export function drawCauldronHalo(ctx, cx, cy, radius, mixColor) {
   if (!mixColor) return;
   ctx.save();
-  ctx.globalAlpha = 0.22;
+  const glow = ctx.createRadialGradient(cx, cy, radius * 0.6, cx, cy, radius + 46);
+  const [r, g, b] = parseRgb(mixColor);
+  glow.addColorStop(0, `rgba(${r},${g},${b},0.20)`);
+  glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius + 46, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.28;
   ctx.strokeStyle = mixColor;
   ctx.lineWidth = 10;
   ctx.beginPath();
   ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.globalAlpha = 0.1;
+  ctx.globalAlpha = 0.14;
   ctx.lineWidth = 18;
   ctx.beginPath();
   ctx.arc(cx, cy, radius + 12, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = 0.07;
+  ctx.lineWidth = 26;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius + 22, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -483,4 +497,416 @@ export function drawOrnamentRow(ctx, elements, cx, y, radius) {
   ctx.lineTo(x0 + span + 110, y);
   ctx.stroke();
   elements.forEach((el, i) => drawElementGlyph(ctx, el, x0 + i * gap, y, radius));
+}
+
+// ---- Tambahan visual Fase A (di bawah deklarasi yang sudah ada) ----
+
+// Mencerahkan warna rgb/hex dengan faktor > 1 (dibatasi 255 per kanal).
+export function brightenRgb(color, factor) {
+  const [r, g, b] = parseRgb(color);
+  const lift = (c) => Math.min(255, Math.round(c * factor));
+  return `rgb(${lift(r)},${lift(g)},${lift(b)})`;
+}
+
+// Gelembung warna per elemen di dalam cairan: satu orb per slot terisi,
+// sehingga campuran proporsional terlihat langsung (bukan hanya rata-rata).
+export function drawCauldronBlobs(ctx, cx, cy, radius, elements, time) {
+  if (!elements || elements.length === 0) return;
+  const n = elements.length;
+  const orbR = radius * (n <= 2 ? 0.34 : n === 3 ? 0.28 : n === 4 ? 0.24 : 0.21);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - 4, 0, Math.PI * 2);
+  ctx.clip();
+  elements.forEach((el, i) => {
+    const angle = -Math.PI / 2 + (i * Math.PI * 2) / n + Math.sin(time * 0.8 + i) * 0.15;
+    const dist = radius * 0.38;
+    const bx = cx + Math.cos(angle) * dist;
+    const by = cy + Math.sin(angle) * dist + Math.sin(time * 1.3 + i * 2) * 4;
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = el.color;
+    ctx.beginPath();
+    ctx.arc(bx, by, orbR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath();
+    ctx.arc(bx - orbR * 0.3, by - orbR * 0.3, orbR * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+// Uap mengepul di atas kauldron: 3 sulur bezier yang bergoyang pelan.
+// Fungsi murni dari waktu — tanpa RNG.
+export function drawSteam(ctx, cx, cy, radius, time) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i += 1) {
+    const x0 = cx + (i - 1) * 26;
+    const sway = Math.sin(time * 1.1 + i * 2.1) * 8;
+    const sway2 = Math.sin(time * 0.9 + i * 1.3 + 1) * 12;
+    ctx.strokeStyle = `rgba(242,230,207,${0.1 + 0.05 * Math.sin(time + i)})`;
+    ctx.lineWidth = 5 - i * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(x0, cy - radius - 4);
+    ctx.bezierCurveTo(
+      x0 + sway, cy - radius - 26,
+      x0 + sway2, cy - radius - 44,
+      x0 + sway * 0.5, cy - radius - 66,
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---- Keluarga tema per hari: fungsi murni dari nomor hari ----
+export const DAY_THEMES = [
+  {
+    name: 'DAWN MARKET', skyTop: '#2a1a20', skyBottom: '#4a2c1c',
+    celestial: 'sun', celestialColor: '#f2c98a',
+    ambient: 'mote', ambientColor: '#e8c890', hudTint: '#f2c98a', flash: 0,
+  },
+  {
+    name: 'MIDDAY MARKET', skyTop: '#2c2113', skyBottom: '#5a3d1a',
+    celestial: 'sun', celestialColor: '#ffe9b0',
+    ambient: 'mote', ambientColor: '#f2e0a8', hudTint: '#ffe9b0', flash: 0,
+  },
+  {
+    name: 'RAINY DUSK', skyTop: '#1c1626', skyBottom: '#33283f',
+    celestial: 'none', celestialColor: null,
+    ambient: 'rain', ambientColor: '#8ea0c0', hudTint: '#b8a8d8', flash: 0,
+  },
+  {
+    name: 'NIGHT STORM', skyTop: '#0e1420', skyBottom: '#1c2838',
+    celestial: 'none', celestialColor: null,
+    ambient: 'rain', ambientColor: '#7a90b0', hudTint: '#8ec9ff', flash: 1,
+  },
+  {
+    name: 'BLOOD MOON', skyTop: '#241014', skyBottom: '#3d1a1a',
+    celestial: 'bloodMoon', celestialColor: '#e5484d',
+    ambient: 'ember', ambientColor: '#e87a4d', hudTint: '#f28a7a', flash: 0,
+  },
+];
+
+export function themeFor(day) {
+  const idx = Math.min(4, Math.max(0, Math.floor((day - 1) / 2)));
+  return DAY_THEMES[idx];
+}
+
+// Tata letak latar statis (posisi tetap, tanpa RNG): atap kios di strip
+// langit, botol di rak samping, dan titik glow hangat di pita tengah.
+const SKYLINE_ROOFS = [
+  { x: 30, w: 70, h: 10 }, { x: 120, w: 90, h: 14 }, { x: 230, w: 60, h: 8 },
+  { x: 310, w: 100, h: 12 }, { x: 430, w: 70, h: 9 }, { x: 520, w: 80, h: 13 },
+  { x: 620, w: 60, h: 8 }, { x: 700, w: 90, h: 12 }, { x: 810, w: 70, h: 10 },
+  { x: 900, w: 100, h: 14 }, { x: 1020, w: 60, h: 9 }, { x: 1100, w: 90, h: 12 },
+  { x: 1210, w: 50, h: 8 },
+];
+const SKYLINE_LIGHTS = [
+  { x: 55, y: 86 }, { x: 160, y: 84 }, { x: 355, y: 85 }, { x: 560, y: 83 },
+  { x: 745, y: 85 }, { x: 945, y: 84 }, { x: 1140, y: 85 },
+];
+const SHELF_BOTTLES = [
+  { side: 0, shelf: 0, dx: 6, w: 9, h: 22, c: '#e5484d' },
+  { side: 0, shelf: 0, dx: 19, w: 11, h: 26, c: '#3a86d4' },
+  { side: 0, shelf: 0, dx: 33, w: 8, h: 18, c: '#3fb970' },
+  { side: 0, shelf: 1, dx: 8, w: 10, h: 24, c: '#9a6ee8' },
+  { side: 0, shelf: 1, dx: 22, w: 9, h: 20, c: '#f2b234' },
+  { side: 0, shelf: 1, dx: 34, w: 8, h: 16, c: '#c9d4e8' },
+  { side: 1, shelf: 0, dx: 5, w: 8, h: 18, c: '#3fb970' },
+  { side: 1, shelf: 0, dx: 17, w: 10, h: 24, c: '#f2b234' },
+  { side: 1, shelf: 0, dx: 30, w: 9, h: 20, c: '#e5484d' },
+  { side: 1, shelf: 1, dx: 7, w: 9, h: 20, c: '#3a86d4' },
+  { side: 1, shelf: 1, dx: 20, w: 11, h: 26, c: '#c9d4e8' },
+  { side: 1, shelf: 1, dx: 34, w: 8, h: 17, c: '#9a6ee8' },
+];
+const GLOW_DOTS = [
+  { x: 150, y: 310, r: 26, phase: 0 },
+  { x: 1130, y: 310, r: 26, phase: 2.1 },
+  { x: 120, y: 470, r: 22, phase: 4.2 },
+  { x: 1160, y: 470, r: 22, phase: 1.3 },
+  { x: 300, y: 482, r: 18, phase: 3.1 },
+  { x: 980, y: 482, r: 18, phase: 5.4 },
+];
+
+// Latar berlapis layar play: strip langit bertema + siluet kios + tiang
+// kayu + lentera + rak botol + glow hangat. Dipanggil sekali per frame
+// sebelum panel; semua gerakan fungsi dari animTime (deterministik).
+export function drawBackground(ctx, state) {
+  const time = state.animTime || 0;
+  const theme = themeFor(state.day || 1);
+  clearScreen(ctx, 1280, 720);
+  // Strip langit bertema (0-92px) + benda langit.
+  const sky = ctx.createLinearGradient(0, 0, 0, 92);
+  sky.addColorStop(0, theme.skyTop);
+  sky.addColorStop(1, theme.skyBottom);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 1280, 92);
+  if (theme.celestial === 'sun' || theme.celestial === 'bloodMoon') {
+    const [r, g, b] = parseRgb(theme.celestialColor);
+    const glow = ctx.createRadialGradient(640, 76, 4, 640, 76, 34);
+    glow.addColorStop(0, `rgba(${r},${g},${b},0.35)`);
+    glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(640, 76, 34, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = theme.celestialColor;
+    ctx.beginPath();
+    ctx.arc(640, 76, theme.celestial === 'bloodMoon' ? 13 : 11, 0, Math.PI * 2);
+    ctx.fill();
+    if (theme.celestial === 'bloodMoon') {
+      ctx.fillStyle = 'rgba(20,10,10,0.35)';
+      ctx.beginPath();
+      ctx.arc(636, 73, 3, 0, Math.PI * 2);
+      ctx.arc(644, 79, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (theme.celestial === 'none') {
+    ctx.fillStyle = 'rgba(242,230,207,0.10)';
+    ctx.fillRect(0, 78, 1280, 14);
+    if (theme.flash) {
+      ctx.fillStyle = 'rgba(10,14,22,0.55)';
+      for (const bx of [240, 640, 1020]) {
+        ctx.beginPath();
+        ctx.ellipse(bx, 58, 90, 16, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const f = Math.pow(Math.max(0, Math.sin(time * 0.7)), 24);
+      if (f > 0.01) {
+        ctx.fillStyle = `rgba(200,220,255,${f * 0.22})`;
+        ctx.fillRect(0, 0, 1280, 92);
+      }
+    }
+  }
+  // Siluet atap kios + jendela hangat di dasar strip langit.
+  ctx.fillStyle = 'rgba(15,10,6,0.55)';
+  for (const roof of SKYLINE_ROOFS) {
+    ctx.beginPath();
+    ctx.moveTo(roof.x, 92);
+    ctx.lineTo(roof.x + roof.w / 2, 92 - roof.h);
+    ctx.lineTo(roof.x + roof.w, 92);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(242,178,52,0.7)';
+  for (const light of SKYLINE_LIGHTS) {
+    ctx.fillRect(light.x, light.y, 3, 3);
+  }
+  // Tepi awning bergerigi di bawah strip langit.
+  for (let x = 0; x < 1280; x += 32) {
+    ctx.fillStyle = (x / 32) % 2 === 0 ? 'rgba(58,31,20,0.85)' : 'rgba(42,28,17,0.85)';
+    ctx.beginPath();
+    ctx.arc(x + 16, 92, 16, 0, Math.PI);
+    ctx.fill();
+  }
+  // Tiang kayu di kedua tepi layar.
+  for (const px of [0, 1258]) {
+    ctx.fillStyle = '#241610';
+    ctx.fillRect(px, 0, 22, 720);
+    ctx.fillStyle = 'rgba(232,165,88,0.15)';
+    ctx.fillRect(px === 0 ? 20 : 1258, 0, 2, 720);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(px + 6, 0, 2, 720);
+    ctx.fillStyle = 'rgba(196,123,58,0.6)';
+    for (const ny of [180, 380, 580, 680]) {
+      ctx.beginPath();
+      ctx.arc(px + 11, ny, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Lentera gantung yang berkelip di margin kiri/kanan.
+  for (const [lx, phase] of [[36, 0], [1244, 2.1]]) {
+    const flicker = 0.5 + 0.2 * Math.sin(time * 3 + phase);
+    ctx.strokeStyle = 'rgba(20,13,8,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(lx, 92);
+    ctx.lineTo(lx, 100);
+    ctx.stroke();
+    const lg = ctx.createRadialGradient(lx, 112, 2, lx, 112, 28);
+    lg.addColorStop(0, `rgba(242,178,52,${0.22 * flicker + 0.08})`);
+    lg.addColorStop(1, 'rgba(242,178,52,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.arc(lx, 112, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#3a2410';
+    ctx.beginPath();
+    ctx.roundRect(lx - 9, 100, 18, 26, 5);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.copper;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = `rgba(242,178,52,${flicker + 0.3})`;
+    ctx.beginPath();
+    ctx.arc(lx, 112, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Rak botol di margin kiri/kanan (2 rak per sisi).
+  for (const side of [0, 1]) {
+    const x0 = side === 0 ? 6 : 1224;
+    for (const shelfY of [330, 430]) {
+      ctx.fillStyle = '#3a2410';
+      ctx.fillRect(x0, shelfY, 44, 6);
+      ctx.fillStyle = 'rgba(232,165,88,0.25)';
+      ctx.fillRect(x0, shelfY, 44, 1.5);
+    }
+  }
+  for (const bottle of SHELF_BOTTLES) {
+    const x0 = bottle.side === 0 ? 6 : 1224;
+    const shelfY = bottle.shelf === 0 ? 330 : 430;
+    const bx = x0 + bottle.dx;
+    const by = shelfY - bottle.h;
+    ctx.fillStyle = bottle.c;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bottle.w, bottle.h, 3);
+    ctx.fill();
+    ctx.fillRect(bx + bottle.w / 2 - 2, by - 4, 4, 5);
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillRect(bx + 2, by + 3, 2, bottle.h - 6);
+    ctx.globalAlpha = 1;
+  }
+  // Titik glow hangat yang berdenyut di pita tengah.
+  for (const dot of GLOW_DOTS) {
+    const a = 0.05 + 0.02 * Math.sin(time * 0.9 + dot.phase);
+    const dg = ctx.createRadialGradient(dot.x, dot.y, 2, dot.x, dot.y, dot.r);
+    dg.addColorStop(0, `rgba(232,165,88,${a})`);
+    dg.addColorStop(1, 'rgba(232,165,88,0)');
+    ctx.fillStyle = dg;
+    ctx.beginPath();
+    ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// Potret pelanggan per tipe: Guest = siluet berkerudung dasar; Purist =
+// halo + trim putih + sigil; Critic = bahu merah + monokel + lencana.
+// drawSilhouette tidak diubah; varian digambar sebagai overlay.
+export function drawCustomerPortrait(ctx, customer, cx, cy, r, accent) {
+  drawSilhouette(ctx, cx, cy, r, accent);
+  if (customer.purist) {
+    ctx.strokeStyle = 'rgba(242,230,207,0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - r * 0.92, r * 0.3, r * 0.12, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#f2e6cf';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy - r * 0.22, r * 0.46, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(242,230,207,0.9)';
+    ctx.save();
+    ctx.translate(cx, cy + r * 0.55);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillRect(-r * 0.1, -r * 0.1, r * 0.2, r * 0.2);
+    ctx.restore();
+  } else if (customer.critic) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(58,20,20,0.85)';
+    ctx.fillRect(cx - r, cy + r * 0.3, r * 2, r);
+    ctx.restore();
+    ctx.strokeStyle = '#e5484d';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy - r * 0.22, r * 0.52, Math.PI * 0.25, Math.PI * 0.75);
+    ctx.stroke();
+    ctx.strokeStyle = '#f2b234';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx + r * 0.16, cy - r * 0.22, r * 0.2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(242,178,52,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + r * 0.32, cy - r * 0.08);
+    ctx.lineTo(cx + r * 0.5, cy + r * 0.3);
+    ctx.stroke();
+    starPath(ctx, cx - r * 0.45, cy + r * 0.45, r * 0.16);
+    ctx.fillStyle = '#f2b234';
+    ctx.fill();
+  }
+}
+
+// Bingkai kartu kaya: border ganda + filigree sudut + foil gradasi +
+// glow saat hover. Ornamen hanya di bingkai; glyph dan nama tidak berubah.
+export function drawCardFrame(ctx, rect, opts = {}) {
+  const tint = opts.tint || PALETTE.copper;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 10);
+  ctx.fillStyle = PALETTE.panel;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  const sheen = ctx.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
+  sheen.addColorStop(0, 'rgba(255,255,255,0.10)');
+  sheen.addColorStop(0.45, 'rgba(255,255,255,0)');
+  sheen.addColorStop(0.6, 'rgba(255,255,255,0.03)');
+  sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  const [tr, tg, tb] = parseRgb(tint);
+  const wash = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h * 0.55);
+  wash.addColorStop(0, `rgba(${tr},${tg},${tb},0.16)`);
+  wash.addColorStop(1, `rgba(${tr},${tg},${tb},0)`);
+  ctx.fillStyle = wash;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h * 0.55);
+  ctx.restore();
+  if (opts.hover) {
+    ctx.shadowColor = tint;
+    ctx.shadowBlur = 18;
+  }
+  ctx.strokeStyle = tint;
+  ctx.lineWidth = opts.hover ? 3 : 2.5;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.roundRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, 9);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(232,165,88,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(rect.x + 4, rect.y + 4, rect.w - 8, rect.h - 8, 7);
+  ctx.stroke();
+  // Filigree sudut: flourish-L + titik di tiap sudut bingkai.
+  ctx.strokeStyle = 'rgba(232,165,88,0.8)';
+  ctx.lineWidth = 1.5;
+  const corners = [
+    { x: rect.x + 8, y: rect.y + 8, sx: 1, sy: 1 },
+    { x: rect.x + rect.w - 8, y: rect.y + 8, sx: -1, sy: 1 },
+    { x: rect.x + 8, y: rect.y + rect.h - 8, sx: 1, sy: -1 },
+    { x: rect.x + rect.w - 8, y: rect.y + rect.h - 8, sx: -1, sy: -1 },
+  ];
+  for (const c of corners) {
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y + 9 * c.sy);
+    ctx.lineTo(c.x, c.y);
+    ctx.lineTo(c.x + 9 * c.sx, c.y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(232,165,88,0.8)';
+    ctx.beginPath();
+    ctx.arc(c.x + 3 * c.sx, c.y + 3 * c.sy, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Gambar glyph sekali dengan bayangan emboss (gelap di bawah, tanpa
+// menambah path call — signature glyph di tes tidak berubah).
+export function drawGlyphEmbossed(ctx, drawFn) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.65)';
+  ctx.shadowBlur = 2;
+  ctx.shadowOffsetY = 3;
+  drawFn();
+  ctx.restore();
 }

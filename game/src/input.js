@@ -15,6 +15,11 @@ export function bindInput(canvas, handlers) {
     const { x, y } = toGameCoords(canvas, event.clientX, event.clientY);
     handlers.onClick(x, y);
   });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!handlers.onHover) return;
+    const { x, y } = toGameCoords(canvas, event.clientX, event.clientY);
+    handlers.onHover(x, y);
+  });
   window.addEventListener('keydown', (event) => {
     if (event.repeat) return;
     if (event.key === ' ') event.preventDefault();

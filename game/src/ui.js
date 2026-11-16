@@ -19,18 +19,26 @@ import {
   PALETTE,
   SILHOUETTE_ACCENTS,
   clearScreen,
+  drawBackground,
   drawButton,
+  drawCardFrame,
+  drawCauldronBlobs,
   drawCauldronHalo,
   drawCauldronLiquid,
+  drawCustomerPortrait,
   drawElementGlyph,
+  drawGlyphEmbossed,
   drawOrnamentRow,
   drawPanel,
   drawRelicIcon,
   drawSilhouette,
+  drawSteam,
   drawText,
   drawUtilityGlyph,
   drawVignette,
   mixElementColors,
+  pointInRect,
+  themeFor,
 } from './render.js';
 
 export const LAYOUT = {
@@ -157,7 +165,7 @@ function drawCustomers(ctx, state) {
     const y = base.y;
     drawPanel(ctx, x, y, base.w, base.h, 12);
     const fraction = customer.maxPatience > 0 ? customer.patience / customer.maxPatience : 0;
-    drawSilhouette(ctx, x + 40, y + 40, 22, SILHOUETTE_ACCENTS[customer.id % SILHOUETTE_ACCENTS.length]);
+    drawCustomerPortrait(ctx, customer, x + 40, y + 40, 22, SILHOUETTE_ACCENTS[customer.id % SILHOUETTE_ACCENTS.length]);
     ctx.strokeStyle = patienceColor(fraction);
     ctx.lineWidth = 6;
     ctx.beginPath();
@@ -198,6 +206,8 @@ function drawCauldron(ctx, state) {
   ctx.arc(cx, cy, 86, 0, Math.PI * 2);
   ctx.fill();
   drawCauldronLiquid(ctx, cx, cy, 86, mixColor, state.animTime || 0);
+  drawCauldronBlobs(ctx, cx, cy, 86, filled, state.animTime || 0);
+  if (mixColor) drawSteam(ctx, cx, cy, 86, state.animTime || 0);
   ctx.strokeStyle = PALETTE.copper;
   ctx.lineWidth = 4;
   ctx.beginPath();
@@ -228,7 +238,9 @@ function drawHand(ctx, state) {
     const rect = handCardRect(hand.length, i);
     const x = rect.x + rect.w / 2;
     const y = rect.y;
-    drawPanel(ctx, rect.x, rect.y, rect.w, rect.h, 10);
+    const tint = ELEMENT_BY_ID[cardId] ? ELEMENT_BY_ID[cardId].color : PALETTE.copper;
+    const hover = Boolean(state.mouse && pointInRect(state.mouse.x, state.mouse.y, rect));
+    drawCardFrame(ctx, rect, { tint, hover });
     if (state.selected === i) {
       ctx.strokeStyle = PALETTE.copperBright;
       ctx.lineWidth = 3;
@@ -239,25 +251,39 @@ function drawHand(ctx, state) {
       ctx.fill();
     }
     if (ELEMENT_BY_ID[cardId]) {
-      drawElementGlyph(ctx, ELEMENT_BY_ID[cardId], x, y + 46, 26);
+      drawGlyphEmbossed(ctx, () => drawElementGlyph(ctx, ELEMENT_BY_ID[cardId], x, y + 46, 26));
       drawText(ctx, ELEMENT_BY_ID[cardId].name, x, y + 104, { font: '20px Georgia, serif', align: 'center' });
     } else if (UTILITIES[cardId]) {
-      drawUtilityGlyph(ctx, cardId, x, y + 46, 26);
+      drawGlyphEmbossed(ctx, () => drawUtilityGlyph(ctx, cardId, x, y + 46, 26));
       drawText(ctx, UTILITIES[cardId].name, x, y + 104, { font: '20px Georgia, serif', align: 'center' });
     }
   });
 }
 
 function drawPlay(ctx, state) {
-  clearScreen(ctx, 1280, 720);
+  drawBackground(ctx, state);
   const cfg = dayConfig(state.day);
-  drawText(ctx, `DAY ${state.day}/10`, 24, 40, { font: '22px Georgia, serif' });
-  drawText(ctx, `Served ${state.servedToday}/${cfg.quota}`, 170, 40, { font: '22px Georgia, serif' });
-  drawText(ctx, `SCORE ${state.score}`, 360, 40, { font: '22px Georgia, serif' });
-  drawText(ctx, `COINS ${state.coins}`, 540, 40, { font: '22px Georgia, serif' });
-  drawText(ctx, heartsLine(state.hearts, 5), 700, 40, { font: '22px Georgia, serif', color: PALETTE.danger });
-  drawText(ctx, `COMBO x${state.combo}`, 900, 40, { font: '22px Georgia, serif' });
-  drawText(ctx, state.audio && state.audio.muted ? 'M: MUTED' : 'M: SOUND', 1100, 40, { font: '22px Georgia, serif' });
+  const theme = themeFor(state.day);
+  drawText(ctx, `DAY ${state.day}/10`, 24, 40, { font: '22px Georgia, serif', color: theme.hudTint });
+  ctx.font = '22px Georgia, serif';
+  const dayWidth = ctx.measureText(`DAY ${state.day}/10`).width;
+  const pillX = 24 + dayWidth + 14;
+  ctx.font = '20px Georgia, serif';
+  const pillW = ctx.measureText(theme.name).width + 24;
+  ctx.fillStyle = 'rgba(20,13,8,0.75)';
+  ctx.strokeStyle = theme.hudTint;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(pillX, 16, pillW, 30, 15);
+  ctx.fill();
+  ctx.stroke();
+  drawText(ctx, theme.name, pillX + pillW / 2, 37, { font: '20px Georgia, serif', align: 'center', color: theme.hudTint });
+  drawText(ctx, `Served ${state.servedToday}/${cfg.quota}`, 340, 40, { font: '22px Georgia, serif' });
+  drawText(ctx, `SCORE ${state.score}`, 490, 40, { font: '22px Georgia, serif' });
+  drawText(ctx, `COINS ${state.coins}`, 640, 40, { font: '22px Georgia, serif' });
+  drawText(ctx, heartsLine(state.hearts, 5), 760, 40, { font: '22px Georgia, serif', color: PALETTE.danger });
+  drawText(ctx, `COMBO x${state.combo}`, 915, 40, { font: '22px Georgia, serif' });
+  drawText(ctx, state.audio && state.audio.muted ? 'M: MUTED' : 'M: SOUND', 1090, 40, { font: '22px Georgia, serif' });
   if (state.freezeLeft > 0) {
     drawText(ctx, `FROZEN ${Math.ceil(state.freezeLeft)}s`, 1256, 70, {
       font: '20px Georgia, serif',
@@ -270,6 +296,12 @@ function drawPlay(ctx, state) {
   drawHand(ctx, state);
   if (state.particles) state.particles.draw(ctx);
   drawText(ctx, PLAY_CONTROLS_LINE, 640, 700, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+  if (state.eventBanner && state.eventBannerLeft > 0 && !state.paused) {
+    ctx.font = '20px Georgia, serif';
+    const bw = ctx.measureText(state.eventBanner).width + 40;
+    drawPanel(ctx, 640 - bw / 2, 652, bw, 30, 15);
+    drawText(ctx, state.eventBanner, 640, 673, { font: '20px Georgia, serif', align: 'center', color: PALETTE.copperBright });
+  }
   if (state.notice && state.noticeLeft > 0 && !state.paused) {
     drawText(ctx, state.notice, 640, 276, { font: '22px Georgia, serif', align: 'center', color: PALETTE.copperBright });
   }
