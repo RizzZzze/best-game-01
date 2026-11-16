@@ -83,7 +83,7 @@ export const COOL_FRACTION = 0.1;
 export const COOL_CHARM_FRACTION = 0.15;
 export const STIR_DRAW = 2;
 export const STIR_CHARM_DRAW = 3;
-export const LONG_CANDLE_BONUS_SEC = 2;
+export const LONG_CANDLE_BONUS_SEC = 1;
 export const WELCOME_MAT_BONUS_SEC = 5;
 export const PURIST_VEIL_BONUS_SEC = 3;
 export const FROST_CHARM_BONUS_SEC = 1;
@@ -99,7 +99,7 @@ export const GOLD_STAR_SCORE = 10;
 // Efek tiap relic diterapkan di hook yang sudah ada (serveCoins,
 // resolveBrew, beginDay, activateUtilityCard, finishDay) — bukan angka
 // bebas: setiap efek membaca konstanta bernama di atas.
-export const RELIC_TIER_THRESHOLDS = [0, 3, 9, 15];
+export const RELIC_TIER_THRESHOLDS = [0, 3, 12, 18];
 
 export const RELICS = {
   ladle: { id: 'ladle', name: 'Copper Ladle', price: 25, text: '+1 coin per serve', tier: 0, icon: { shape: 'ladle' } },
@@ -108,17 +108,17 @@ export const RELICS = {
   emberCup: { id: 'emberCup', name: 'Ember Cup', price: 22, text: '+1 coin when the brew holds Cinnabar', tier: 1, icon: { shape: 'cup', element: 'cinnabar' } },
   tideCup: { id: 'tideCup', name: 'Tide Cup', price: 22, text: '+1 coin when the brew holds Moonwell', tier: 1, icon: { shape: 'cup', element: 'moonwell' } },
   rootCup: { id: 'rootCup', name: 'Root Cup', price: 22, text: '+1 coin when the brew holds Thornroot', tier: 1, icon: { shape: 'cup', element: 'thornroot' } },
-  longCandle: { id: 'longCandle', name: 'Long Candle', price: 26, text: 'All customers +2s max patience', tier: 1, icon: { shape: 'candle' } },
-  welcomeMat: { id: 'welcomeMat', name: 'Welcome Mat', price: 18, text: 'First arrival each day +5s patience', tier: 1, icon: { shape: 'mat' } },
-  seedPouch: { id: 'seedPouch', name: 'Seed Pouch', price: 20, text: '+1 Cinnabar copy in every day deck', tier: 1, icon: { shape: 'pouch', element: 'cinnabar' } },
+  longCandle: { id: 'longCandle', name: 'Long Candle', price: 26, text: 'All customers +1s max patience', tier: 1, icon: { shape: 'candle' } },
+  welcomeMat: { id: 'welcomeMat', name: 'Welcome Mat', price: 18, text: 'First arrival each day +5s patience', tier: 2, icon: { shape: 'mat' } },
+  seedPouch: { id: 'seedPouch', name: 'Seed Pouch', price: 20, text: '+1 Cinnabar copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'cinnabar' } },
   stirCharm: { id: 'stirCharm', name: 'Stirring Charm', price: 24, text: 'Stir draws 3 cards', tier: 1, icon: { shape: 'charmStir' } },
   hiveCup: { id: 'hiveCup', name: 'Hive Cup', price: 22, text: '+1 coin when the brew holds Hivegold', tier: 2, icon: { shape: 'cup', element: 'hivegold' } },
   shadeCup: { id: 'shadeCup', name: 'Shade Cup', price: 22, text: '+1 coin when the brew holds Gloomcap', tier: 2, icon: { shape: 'cup', element: 'gloomcap' } },
   saltCup: { id: 'saltCup', name: 'Salt Cup', price: 22, text: '+1 coin when the brew holds Saltstar', tier: 2, icon: { shape: 'cup', element: 'saltstar' } },
   moonPouch: { id: 'moonPouch', name: 'Moon Pouch', price: 20, text: '+1 Moonwell copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'moonwell' } },
   thornPouch: { id: 'thornPouch', name: 'Thorn Pouch', price: 20, text: '+1 Thornroot copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'thornroot' } },
-  frostCharm: { id: 'frostCharm', name: 'Frost Charm', price: 22, text: 'Saltstar freeze lasts 5s', tier: 2, icon: { shape: 'charmFrost' } },
-  coolCharm: { id: 'coolCharm', name: 'Cool Charm', price: 20, text: 'Cool restores +15% patience', tier: 2, icon: { shape: 'charmCool' } },
+  frostCharm: { id: 'frostCharm', name: 'Frost Charm', price: 22, text: 'Saltstar freeze lasts 5s', tier: 1, icon: { shape: 'charmFrost' } },
+  coolCharm: { id: 'coolCharm', name: 'Cool Charm', price: 20, text: 'Cool restores +15% patience', tier: 1, icon: { shape: 'charmCool' } },
   haggleCoin: { id: 'haggleCoin', name: 'Haggling Coin', price: 28, text: 'Shop prices -2 coins (min 8)', tier: 3, icon: { shape: 'coin' } },
   criticSeal: { id: 'criticSeal', name: "Critic's Seal", price: 26, text: 'Critics pay +25% more coins', tier: 3, icon: { shape: 'seal' } },
   puristVeil: { id: 'puristVeil', name: "Purist's Veil", price: 22, text: 'Purists arrive with +3s patience', tier: 3, icon: { shape: 'veil' } },
@@ -363,8 +363,10 @@ export function cauldronSlotCount(ownedRelics) {
 // Shop antar hari: 3 tawaran. upcomingDay = hari yang akan dimasuki.
 // Extra Slot eligible saat upcomingDay >= 6 (pertama muncul di shop sesudah
 // hari 5). Relic yang sudah dimiliki tidak ditawarkan lagi. Fase 2: tier
-// relic terbuka mengikuti jumlah relic di Ledger (perluasan pool antar
-// run, bukan power gratis); ledgerCount 0 = pool v2 persis (3 relic tier 0).
+// relic terbuka mengikuti jumlah relic di Ledger PADA SAAT RUN DIMULAI
+// (dibekukan di ledgerCountAtRunStart — temuan di run ini membuka pool
+// run berikutnya, bukan shop di tengah run yang sama); ledgerCount 0 =
+// pool v2 persis (3 relic tier 0).
 export function shopPool(upcomingDay, ownedRelics, ledgerCount = 0) {
   const pool = [];
   for (const id of unlockedElements(upcomingDay)) {
@@ -385,9 +387,26 @@ export function shopPool(upcomingDay, ownedRelics, ledgerCount = 0) {
 export function generateShopOffers(upcomingDay, ownedRelics, rng, ledgerCount = 0) {
   const bag = shopPool(upcomingDay, ownedRelics, ledgerCount);
   const offers = [];
+  // Fase 3: begitu tier 1 terbuka (Ledger >= 3), shop menawari paling
+  // banyak 1 relic per kunjungan — menahan laju penumpukan relic di
+  // run lanjutan tanpa mengubah undian run 1 (ledgerCount 0 = persis v2).
+  const relicCap = ledgerCount >= 3 ? 1 : Infinity;
+  let relicCount = 0;
   while (offers.length < 3 && bag.length > 0) {
     const at = Math.floor(rng() * bag.length);
-    offers.push(bag.splice(at, 1)[0]);
+    const offer = bag[at];
+    if (offer.kind === 'relic' && relicCount >= relicCap) {
+      const nonRelicAt = bag.findIndex((o) => o.kind !== 'relic');
+      if (nonRelicAt === -1) {
+        offers.push(bag.splice(at, 1)[0]);
+        relicCount += 1;
+      } else {
+        offers.push(bag.splice(nonRelicAt, 1)[0]);
+      }
+    } else {
+      offers.push(bag.splice(at, 1)[0]);
+      if (offer.kind === 'relic') relicCount += 1;
+    }
   }
   return offers;
 }

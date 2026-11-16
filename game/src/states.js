@@ -68,7 +68,6 @@ import {
 import { pointInRect } from './render_scene.js';
 import { beginDay } from './director.js';
 import {
-  ledgerCount,
   loadLedger,
   recordRelic,
   recordRunEnd,
@@ -129,6 +128,10 @@ export function createState(seed = 1) {
     ledger,
     dailyMarket: dailyMarketFor(),
     runNumber: (ledger.runsCompleted || 0) + 1,
+    // Pool shop dibekukan pada hitungan Ledger saat run dimulai: relic
+    // yang ditemukan di run ini membuka pool run BERIKUTNYA (sesuai
+    // brief), bukan shop di tengah run yang sama.
+    ledgerCountAtRunStart: ledger.relics.length,
     runNewRelics: [],
     runRegularVisits: 0,
     runNewRegulars: [],
@@ -211,6 +214,7 @@ export function startNewRun(state, seed = null) {
   state.mulliganStreak = 0;
   state.coinsEarned = 0;
   state.runNumber = ((state.ledger && state.ledger.runsCompleted) || 0) + 1;
+  state.ledgerCountAtRunStart = state.ledger ? state.ledger.relics.length : 0;
   state.runNewRelics = [];
   state.runRegularVisits = 0;
   state.runNewRegulars = [];
@@ -260,7 +264,7 @@ export function finishDay(state) {
     state.day + 1,
     state.ownedRelics,
     state.rng,
-    ledgerCount(state.ledger),
+    state.ledgerCountAtRunStart || 0,
   );
   if (state.ownedRelics.includes('haggleCoin')) {
     for (const offer of state.shopOffers) {
