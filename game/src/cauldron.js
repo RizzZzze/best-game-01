@@ -6,13 +6,17 @@
 // umpan balik visual).
 
 import {
+  CRITIC_SEAL_MULT,
+  CUP_RELICS,
   ELEMENT_BY_ID,
   FREEZE_SEC,
+  FROST_CHARM_BONUS_SEC,
   HAND_SIZE,
   MAX_HEARTS,
   NOTICE_DURATION_SEC,
   REACTIONS,
   REJECT_FLASH_SEC,
+  SEAR_STONE_MULT,
   isElement,
   isRejectedServe,
   sameMultiset,
@@ -20,6 +24,7 @@ import {
   serveScore,
 } from './rules.js';
 import { drawCards, drawUp } from './deck.js';
+import { PATRON_BY_ID, recordRegularServe } from './regulars.js';
 
 export function createCauldron(slotCount) {
   return {
@@ -119,12 +124,25 @@ export function resolveBrew(state) {
 
   // Sajian berhasil. HQ-2: combo naik SEBELUM pengali dihitung.
   state.combo += 1;
+  const owned = state.ownedRelics || [];
+  let bonusCoins = 0;
+  for (const el of elements) {
+    const cup = CUP_RELICS[el];
+    if (cup && owned.includes(cup)) bonusCoins += 1;
+  }
+  if (catalyst === 'hivegold' && owned.includes('honeyDip')) bonusCoins += 1;
+  const patron = target.patronId ? PATRON_BY_ID[target.patronId] : null;
+  const favorite = Boolean(patron && elements.includes(patron.favorite));
   const scoreGained = serveScore(elements.length, state.combo, catalyst);
   const coinsGained = serveCoins(elements.length, {
-    ladle: state.ownedRelics.includes('ladle'),
+    ladle: owned.includes('ladle'),
     seared: catalyst === 'cinnabar',
+    searedMult: owned.includes('searStone') ? SEAR_STONE_MULT : 1.5,
     critic: target.critic,
+    criticMult: owned.includes('criticSeal') ? CRITIC_SEAL_MULT : 2,
     purist: target.purist,
+    bonusCoins,
+    favorite,
   });
   state.score += scoreGained;
   state.coins += coinsGained;
@@ -139,6 +157,9 @@ export function resolveBrew(state) {
   state.servedToday += 1;
   state.selected = null;
 
+  // Regular yang dilayani: kunjungan tercatat, dendam lunas (Fase 2).
+  if (target.patronId) recordRegularServe(state, target, elements);
+
   // Efek katalis, diterapkan setelah skor/koin. Chilled tidak mereset flag
   // warned (peringatan berbunyi sekali per pelanggan).
   if (catalyst === 'moonwell') {
@@ -151,12 +172,12 @@ export function resolveBrew(state) {
   } else if (catalyst === 'hivegold') {
     state.hearts = Math.min(MAX_HEARTS, state.hearts + 1);
   } else if (catalyst === 'saltstar') {
-    state.freezeLeft = FREEZE_SEC;
+    state.freezeLeft = FREEZE_SEC + (owned.includes('frostCharm') ? FROST_CHARM_BONUS_SEC : 0);
   }
   drawUp(state.hand, state.deck, state.discard, state.rng, HAND_SIZE);
   let freshDrawn = [];
   if (catalyst === 'thornroot') {
-    freshDrawn = drawCards(state.hand, state.deck, state.discard, 1, state.rng);
+    freshDrawn = drawCards(state.hand, state.deck, state.discard, owned.includes('freshSprig') ? 2 : 1, state.rng);
   }
 
   state.targetId = state.queue.length > 0 ? state.queue[0].id : null;

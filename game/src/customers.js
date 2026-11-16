@@ -7,6 +7,12 @@ import {
   rollPurist,
   warningRemaining,
 } from './rules.js';
+import {
+  GRUDGE_PATIENCE_FACTOR,
+  REGULAR_CHANCE,
+  REGULAR_FIRST_RUN,
+  pickPatron,
+} from './regulars.js';
 
 let nextCustomerId = 1;
 
@@ -17,14 +23,17 @@ export function resetCustomerIds() {
 export function createCustomer(day, rng, opts = {}) {
   const cfg = dayConfig(day);
   const isCritic = Boolean(opts.critic);
-  const maxPatience = isCritic ? criticPatience(cfg.patience) : cfg.patience;
+  const patronId = opts.patronId || null;
+  let maxPatience = isCritic ? criticPatience(cfg.patience) : cfg.patience;
+  if (patronId && opts.grudge) maxPatience *= GRUDGE_PATIENCE_FACTOR;
   const customer = {
     id: nextCustomerId,
     recipe: generateRecipe(day, rng),
     patience: maxPatience,
     maxPatience,
     critic: isCritic,
-    purist: isCritic ? false : rollPurist(day, false, rng),
+    purist: isCritic || patronId ? false : rollPurist(day, false, rng),
+    patronId,
     warned: false,
   };
   nextCustomerId += 1;
@@ -33,11 +42,32 @@ export function createCustomer(day, rng, opts = {}) {
 
 // Spawn satu pelanggan berikutnya ke antrean. arrivalIndex adalah nomor
 // kedatangan hari itu (0-based); kritik ditentukan planCriticSlots.
-export function spawnNext(queue, day, rng, arrivalIndex, criticSlots) {
+// Fase 2: kedatangan non-kritik sejak run ke-2 berkesempatan menjadi
+// regular (REGULAR_CHANCE); slot kritik tetap didahulukan dan tidak
+// berubah. spawnOpts tanpa ledger/runNumber = perilaku v2 (tamu murni).
+export function spawnNext(queue, day, rng, arrivalIndex, criticSlots, spawnOpts = {}) {
   const cfg = dayConfig(day);
   if (queue.length >= cfg.queueMax) return null;
+  const isCriticSlot = criticSlots.includes(arrivalIndex);
+  let patronId = null;
+  let grudge = false;
+  if (
+    !isCriticSlot &&
+    (spawnOpts.runNumber || 1) >= REGULAR_FIRST_RUN &&
+    spawnOpts.ledger &&
+    rng() < (spawnOpts.regularChance ?? REGULAR_CHANCE)
+  ) {
+    const exclude = queue.map((c) => c.patronId).filter(Boolean);
+    const patron = pickPatron(rng, exclude);
+    if (patron) {
+      patronId = patron.id;
+      grudge = Boolean(spawnOpts.ledger.regulars?.[patronId]?.grudge);
+    }
+  }
   const customer = createCustomer(day, rng, {
-    critic: criticSlots.includes(arrivalIndex),
+    critic: isCriticSlot,
+    patronId,
+    grudge,
   });
   queue.push(customer);
   return customer;

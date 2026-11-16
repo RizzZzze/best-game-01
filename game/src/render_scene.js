@@ -175,6 +175,14 @@ export function themeFor(day) {
   return DAY_THEMES[idx];
 }
 
+// Tema efektif: TODAY'S MARKET mengganti tema SATU hari dengan tema lain
+// (visual saja). daily = { day, themeIndex } dari market.js; tanpa daily,
+// tema alami yang berlaku.
+export function effectiveThemeFor(day, daily) {
+  if (daily && day === daily.day) return DAY_THEMES[daily.themeIndex];
+  return themeFor(day);
+}
+
 // Tata letak latar statis (posisi tetap, tanpa RNG): atap kios di strip
 // langit, botol di rak samping, dan titik glow hangat di pita tengah.
 const SKYLINE_ROOFS = [
@@ -216,7 +224,7 @@ const GLOW_DOTS = [
 // sebelum panel; semua gerakan fungsi dari animTime (deterministik).
 export function drawBackground(ctx, state) {
   const time = state.animTime || 0;
-  const theme = themeFor(state.day || 1);
+  const theme = effectiveThemeFor(state.day || 1, state.dailyMarket);
   clearScreen(ctx, 1280, 720);
   // Strip langit bertema (0-92px) + benda langit.
   const sky = ctx.createLinearGradient(0, 0, 0, 92);

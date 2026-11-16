@@ -4,6 +4,7 @@
 // render.js, Fase 1 v3: pindah verbatim.)
 
 import { PALETTE, parseRgb, shadeRgb } from './render_scene.js';
+import { ELEMENT_BY_ID, RELICS } from './rules.js';
 
 function flamePath(ctx, x, y, r) {
   ctx.beginPath();
@@ -203,7 +204,11 @@ export function drawUtilityGlyph(ctx, cardId, x, y, r) {
 export function drawRelicIcon(ctx, relicId, x, y, r) {
   ctx.save();
   ctx.lineCap = 'round';
-  if (relicId === 'ladle') {
+  const shape = RELICS[relicId]?.icon?.shape || relicId;
+  const iconElement = RELICS[relicId]?.icon?.element
+    ? ELEMENT_BY_ID[RELICS[relicId].icon.element]
+    : null;
+  if (shape === 'ladle') {
     ctx.strokeStyle = PALETTE.copperBright;
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -217,7 +222,7 @@ export function drawRelicIcon(ctx, relicId, x, y, r) {
     ctx.strokeStyle = PALETTE.copperBright;
     ctx.lineWidth = 2;
     ctx.stroke();
-  } else if (relicId === 'bell') {
+  } else if (shape === 'bell') {
     ctx.fillStyle = PALETTE.amber;
     ctx.beginPath();
     ctx.moveTo(x - r * 0.7, y + r * 0.5);
@@ -233,7 +238,7 @@ export function drawRelicIcon(ctx, relicId, x, y, r) {
     ctx.beginPath();
     ctx.arc(x, y + r * 0.8, r * 0.16, 0, Math.PI * 2);
     ctx.fill();
-  } else if (relicId === 'extraSlot') {
+  } else if (shape === 'extraSlot') {
     const w = r * 0.7;
     const gap = r * 0.22;
     const total = 5 * w + 4 * gap;
@@ -249,6 +254,120 @@ export function drawRelicIcon(ctx, relicId, x, y, r) {
       ctx.lineWidth = 2;
       ctx.stroke();
     }
+  } else if (shape === 'cup') {
+    // Cangkir elemen: glyph elemen di dalam cincin warnanya.
+    if (iconElement) {
+      ctx.strokeStyle = iconElement.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
+      drawElementGlyph(ctx, iconElement, x, y, r * 0.55);
+    }
+  } else if (shape === 'pouch') {
+    // Kantong: kantong bundar + glyph elemen kecil di tengah.
+    ctx.fillStyle = '#6b4423';
+    ctx.beginPath();
+    ctx.roundRect(x - r * 0.7, y - r * 0.55, r * 1.4, r * 1.15, r * 0.35);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.copperBright;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (iconElement) drawElementGlyph(ctx, iconElement, x, y + r * 0.1, r * 0.45);
+  } else if (shape === 'charmStir') {
+    drawUtilityGlyph(ctx, 'stir', x, y, r * 0.85);
+  } else if (shape === 'charmCool') {
+    drawUtilityGlyph(ctx, 'cool', x, y, r * 0.85);
+  } else if (shape === 'charmFrost') {
+    drawUtilityGlyph(ctx, 'cool', x, y, r * 0.7);
+    ctx.strokeStyle = '#8ec9ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.95, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (shape === 'candle') {
+    ctx.fillStyle = PALETTE.cream;
+    ctx.beginPath();
+    ctx.roundRect(x - r * 0.28, y - r * 0.1, r * 0.56, r * 0.9, 3);
+    ctx.fill();
+    drawElementGlyph(ctx, ELEMENT_BY_ID.cinnabar, x, y - r * 0.55, r * 0.4);
+  } else if (shape === 'mat') {
+    ctx.fillStyle = '#7a5230';
+    ctx.beginPath();
+    ctx.roundRect(x - r * 0.85, y - r * 0.45, r * 1.7, r * 0.9, 4);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.copperBright;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.6, y);
+    ctx.lineTo(x + r * 0.6, y);
+    ctx.stroke();
+  } else if (shape === 'coin') {
+    ctx.fillStyle = PALETTE.amber;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.copper;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (shape === 'seal') {
+    ctx.fillStyle = PALETTE.amber;
+    starPath(ctx, x, y, r * 0.9, r * 0.4);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.copper;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else if (shape === 'veil') {
+    ctx.strokeStyle = PALETTE.cream;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 0.9);
+    ctx.lineTo(x + r * 0.7, y);
+    ctx.lineTo(x, y + r * 0.9);
+    ctx.lineTo(x - r * 0.7, y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 0.45);
+    ctx.lineTo(x + r * 0.35, y);
+    ctx.lineTo(x, y + r * 0.45);
+    ctx.lineTo(x - r * 0.35, y);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (shape === 'star') {
+    ctx.fillStyle = PALETTE.copperBright;
+    starPath(ctx, x, y, r * 0.95, r * 0.42);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.cream;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  } else if (shape === 'dipper') {
+    ctx.strokeStyle = PALETTE.copperBright;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.1, y - r * 0.2);
+    ctx.lineTo(x + r * 0.8, y - r * 0.8);
+    ctx.stroke();
+    ctx.fillStyle = PALETTE.amber;
+    ctx.beginPath();
+    ctx.arc(x - r * 0.3, y + r * 0.25, r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.copper;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else if (shape === 'sprig') {
+    drawElementGlyph(ctx, ELEMENT_BY_ID.thornroot, x, y, r * 0.85);
+  } else if (shape === 'stone') {
+    ctx.fillStyle = '#e5484d';
+    hexPath(ctx, x, y, r * 0.85);
+    ctx.fill();
+    ctx.strokeStyle = '#ff8a5c';
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
   ctx.restore();
 }

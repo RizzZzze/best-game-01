@@ -19,10 +19,19 @@
 // (Pecahan dari main.js, Fase 1 v3: pindah verbatim.)
 
 import {
+  COOL_CHARM_FRACTION,
+  COOL_FRACTION,
   ELEMENT_BY_ID,
+  GOLD_STAR_SCORE,
+  HAGGLE_DISCOUNT,
   HAND_SIZE,
   NOTICE_DURATION_SEC,
+  PERFECT_DAY_COINS,
+  PERFECT_DAY_SCORE,
+  SHOP_MIN_PRICE,
   START_HEARTS,
+  STIR_CHARM_DRAW,
+  STIR_DRAW,
   TOTAL_DAYS,
   UNLOCK_COPIES,
   generateShopOffers,
@@ -31,6 +40,7 @@ import {
   makeRng,
   mulliganCostFor,
   newlyUnlocked,
+  rankFor,
 } from './rules.js';
 import { drawCards } from './deck.js';
 import {
@@ -57,6 +67,15 @@ import {
 } from './ui.js';
 import { pointInRect } from './render_scene.js';
 import { beginDay } from './director.js';
+import {
+  ledgerCount,
+  loadLedger,
+  recordRelic,
+  recordRunEnd,
+  resetLedger,
+  saveLedger,
+} from './ledger.js';
+import { dailyMarketFor } from './market.js';
 
 const BEST_KEY = 'alembic-rush-best';
 
@@ -93,6 +112,7 @@ export function introNotesFor(day) {
 }
 
 export function createState(seed = 1) {
+  const ledger = loadLedger();
   const state = {
     screen: 'title',
     paused: false,
@@ -103,6 +123,16 @@ export function createState(seed = 1) {
     visualRng: makeRng((seed ^ 0x5f356495) >>> 0),
     mouse: null,
     bestScore: loadBestScore(),
+    // Meta antar-run (Fase 2): Ledger persisten, variasi harian
+    // TODAY'S MARKET, nomor run (regular sejak run ke-2), dan pelacakan
+    // run untuk footer LEDGER UPDATED di layar win.
+    ledger,
+    dailyMarket: dailyMarketFor(),
+    runNumber: (ledger.runsCompleted || 0) + 1,
+    runNewRelics: [],
+    runRegularVisits: 0,
+    runNewRegulars: [],
+    newLedgerArmed: false,
     audio: new AudioEngine(),
     particles: new ParticleSystem(),
     day: 1,
@@ -180,6 +210,11 @@ export function startNewRun(state, seed = null) {
   state.mulliganSpend = 0;
   state.mulliganStreak = 0;
   state.coinsEarned = 0;
+  state.runNumber = ((state.ledger && state.ledger.runsCompleted) || 0) + 1;
+  state.runNewRelics = [];
+  state.runRegularVisits = 0;
+  state.runNewRegulars = [];
+  state.newLedgerArmed = false;
   state.introNotes = introNotesFor(1);
   resetCustomerIds();
   state.particles.clear();
@@ -193,21 +228,45 @@ function updateBest(state) {
   }
 }
 
+// Akhir sebuah run (menang/kalah): hitungan run +1, best run diperbarui,
+// Ledger disimpan. Dipanggil tepat sekali per run.
+function endRun(state) {
+  if (!state.ledger) return;
+  recordRunEnd(state.ledger, {
+    score: state.score,
+    rank: rankFor(state.score),
+    day: state.day,
+  });
+  saveLedger(state.ledger);
+}
+
 // Kuota hari tercapai: bonus hari sempurna, lalu shop atau win.
 export function finishDay(state) {
   const perfect = state.lostToday === 0;
+  const perfectScore = PERFECT_DAY_SCORE + (state.ownedRelics.includes('goldStar') ? GOLD_STAR_SCORE : 0);
   if (perfect) {
-    state.score += 50;
-    state.coins += 10;
-    state.coinsEarned = (state.coinsEarned || 0) + 10;
+    state.score += perfectScore;
+    state.coins += PERFECT_DAY_COINS;
+    state.coinsEarned = (state.coinsEarned || 0) + PERFECT_DAY_COINS;
   }
-  state.dayStats = { served: state.servedToday, lost: state.lostToday, perfect };
+  state.dayStats = { served: state.servedToday, lost: state.lostToday, perfect, perfectScore };
   if (state.day >= TOTAL_DAYS) {
     state.screen = 'win';
     updateBest(state);
+    endRun(state);
     return state;
   }
-  state.shopOffers = generateShopOffers(state.day + 1, state.ownedRelics, state.rng);
+  state.shopOffers = generateShopOffers(
+    state.day + 1,
+    state.ownedRelics,
+    state.rng,
+    ledgerCount(state.ledger),
+  );
+  if (state.ownedRelics.includes('haggleCoin')) {
+    for (const offer of state.shopOffers) {
+      offer.price = Math.max(SHOP_MIN_PRICE, offer.price - HAGGLE_DISCOUNT);
+    }
+  }
   state.screen = 'dayResult';
   return state;
 }
@@ -224,6 +283,7 @@ export function loseRun(state, cause) {
   state.paused = false;
   state.loseCause = cause;
   updateBest(state);
+  endRun(state);
   return state;
 }
 
@@ -248,8 +308,30 @@ export function buyOffer(state, index) {
     state.extraCards.push(offer.id);
   } else if (offer.kind === 'relic') {
     state.ownedRelics.push(offer.id);
+    // Relic yang dibeli tercatat permanen di Ledger (membuka tier shop
+    // run berikutnya); relic baru run ini dilacak untuk footer win.
+    if (state.ledger) {
+      if (recordRelic(state.ledger, offer.id) && Array.isArray(state.runNewRelics)) {
+        state.runNewRelics.push(offer.id);
+      }
+      saveLedger(state.ledger);
+    }
   }
   return { ok: true };
+}
+
+// New Ledger (tombol di title / tombol N): klik pertama meng-arm
+// (tombol berubah jadi SURE?), klik kedua mereset Ledger. Klik lain di
+// title membatalkan arm.
+export function armOrResetLedger(state) {
+  if (!state.newLedgerArmed) {
+    state.newLedgerArmed = true;
+    return state;
+  }
+  state.ledger = resetLedger();
+  state.runNumber = 1;
+  state.newLedgerArmed = false;
+  return state;
 }
 
 export function setNotice(state, text) {
@@ -302,15 +384,17 @@ export function activateUtilityCard(state, index) {
   state.discard.push(cardId);
   state.selected = null;
   if (cardId === 'stir') {
-    const drawn = drawCards(state.hand, state.deck, state.discard, 2, state.rng);
+    const count = state.ownedRelics.includes('stirCharm') ? STIR_CHARM_DRAW : STIR_DRAW;
+    const drawn = drawCards(state.hand, state.deck, state.discard, count, state.rng);
     setNotice(state, `Stir! Drew ${drawn.length} card${drawn.length === 1 ? '' : 's'}.`);
     return { status: 'stir', drawn };
   }
   if (cardId === 'cool') {
+    const fraction = state.ownedRelics.includes('coolCharm') ? COOL_CHARM_FRACTION : COOL_FRACTION;
     for (const customer of state.queue) {
       customer.patience = Math.min(
         customer.maxPatience,
-        customer.patience + 0.1 * customer.maxPatience,
+        customer.patience + fraction * customer.maxPatience,
       );
     }
     setNotice(state, 'Cool! The queue calms down.');
@@ -327,6 +411,17 @@ export function handleKey(state, key) {
   if (lower === 'm') return toggleMute(state);
   if (state.screen === 'title') {
     if (key === 'Enter' || key === ' ') return startNewRun(state);
+    if (lower === 'l') {
+      state.screen = 'ledger';
+      state.newLedgerArmed = false;
+      return state;
+    }
+    if (lower === 'n') return armOrResetLedger(state);
+  } else if (state.screen === 'ledger') {
+    if (key === 'Enter' || key === 'Escape' || lower === 'l') {
+      state.screen = 'title';
+      return state;
+    }
   } else if (state.screen === 'dayIntro') {
     if (key === 'Enter' || key === ' ') return beginDay(state);
   } else if (state.screen === 'play') {
@@ -427,7 +522,22 @@ export function handleClick(state, x, y) {
     return state;
   }
   if (state.screen === 'title') {
+    const wasArmed = state.newLedgerArmed;
+    state.newLedgerArmed = false;
     if (pointInRect(x, y, LAYOUT.startButton)) return startNewRun(state);
+    if (pointInRect(x, y, LAYOUT.ledgerButton)) {
+      state.screen = 'ledger';
+      return state;
+    }
+    if (pointInRect(x, y, LAYOUT.newLedgerButton)) {
+      state.newLedgerArmed = wasArmed;
+      return armOrResetLedger(state);
+    }
+  } else if (state.screen === 'ledger') {
+    if (pointInRect(x, y, LAYOUT.backButton)) {
+      state.screen = 'title';
+      return state;
+    }
   } else if (state.screen === 'dayIntro') {
     if (pointInRect(x, y, LAYOUT.beginButton)) return beginDay(state);
   } else if (state.screen === 'play') {

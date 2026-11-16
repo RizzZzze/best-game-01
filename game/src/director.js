@@ -10,8 +10,12 @@
 import {
   ELEMENT_BY_ID,
   INITIAL_SPAWNS,
+  LONG_CANDLE_BONUS_SEC,
+  POUCH_RELICS,
+  PURIST_VEIL_BONUS_SEC,
   SPAWN_INTERVAL_SEC,
   TOTAL_DAYS,
+  WELCOME_MAT_BONUS_SEC,
   cauldronSlotCount,
   dayConfig,
   planCriticSlots,
@@ -20,13 +24,44 @@ import {
 import { buildDeck, drawUp } from './deck.js';
 import { createCauldron } from './cauldron.js';
 import { spawnNext, tickQueue } from './customers.js';
-import { themeFor } from './render_scene.js';
+import { effectiveThemeFor } from './render_scene.js';
+import { recordRegularWalkout } from './regulars.js';
 import { finishDay, loseRun, setNotice } from './states.js';
+
+// Opsi spawn regular (Fase 2): run >= 2 + Ledger aktif -> pelanggan bisa
+// menjadi patron bernama. Run 1 / tanpa Ledger = tamu murni seperti v2.
+function spawnOptions(state) {
+  return {
+    runNumber: state.runNumber || 1,
+    ledger: state.ledger || null,
+  };
+}
+
+// Bonus kesabaran saat spawn (relic tier 1/3): Long Candle untuk semua,
+// Purist's Veil khusus Purist. Diterapkan ke patience DAN maxPatience
+// agar ambang peringatan ikut skala. Diekspor untuk pengujian.
+export function applySpawnBonuses(state, customer) {
+  const owned = state.ownedRelics || [];
+  let bonus = 0;
+  if (owned.includes('longCandle')) bonus += LONG_CANDLE_BONUS_SEC;
+  if (customer.purist && owned.includes('puristVeil')) bonus += PURIST_VEIL_BONUS_SEC;
+  if (bonus > 0) {
+    customer.maxPatience += bonus;
+    customer.patience += bonus;
+  }
+  return customer;
+}
 
 // Siapkan hari: deck dikocok, tangan ditarik, kauldron kosong, antrean awal.
 export function beginDay(state) {
   const cfg = dayConfig(state.day);
-  state.deck = buildDeck(state.day, state.extraCards, state.rng);
+  const owned = state.ownedRelics || [];
+  // Relic kantong: +1 salinan elemennya di deck SETIAP hari (pool saja).
+  const bonusCards = [];
+  for (const [elementId, relicId] of Object.entries(POUCH_RELICS)) {
+    if (owned.includes(relicId)) bonusCards.push(elementId);
+  }
+  state.deck = buildDeck(state.day, [...state.extraCards, ...bonusCards], state.rng);
   state.hand = [];
   state.discard = [];
   drawUp(state.hand, state.deck, state.discard, state.rng);
@@ -46,7 +81,15 @@ export function beginDay(state) {
   state.rejectFlash = 0;
   const initial = Math.min(INITIAL_SPAWNS, cfg.queueMax);
   for (let i = 0; i < initial; i += 1) {
-    spawnNext(state.queue, state.day, state.rng, state.arrivalsSpawned, state.criticSlots);
+    const spawned = spawnNext(state.queue, state.day, state.rng, state.arrivalsSpawned, state.criticSlots, spawnOptions(state));
+    if (spawned) {
+      applySpawnBonuses(state, spawned);
+      // Welcome Mat: kedatangan pertama hari itu saja yang +5s.
+      if (i === 0 && owned.includes('welcomeMat')) {
+        spawned.maxPatience += WELCOME_MAT_BONUS_SEC;
+        spawned.patience += WELCOME_MAT_BONUS_SEC;
+      }
+    }
     state.arrivalsSpawned += 1;
   }
   if (state.queue.length > 0) state.targetId = state.queue[0].id;
@@ -81,6 +124,7 @@ export function update(state, dt) {
     state.hearts -= 1;
     state.combo = 0; // HQ-3: walk-out mereset combo.
     state.lostToday += 1;
+    if (gone.patronId) recordRegularWalkout(state, gone);
   }
   if (walkouts.length > 0) {
     setNotice(state, 'A customer walked out! -1 heart, combo reset.');
@@ -101,7 +145,8 @@ export function update(state, dt) {
     state.arrivalsSpawned < state.arrivalsPlanned
   ) {
     state.spawnTimer = 0;
-    const spawned = spawnNext(state.queue, state.day, state.rng, state.arrivalsSpawned, state.criticSlots);
+    const spawned = spawnNext(state.queue, state.day, state.rng, state.arrivalsSpawned, state.criticSlots, spawnOptions(state));
+    if (spawned) applySpawnBonuses(state, spawned);
     state.arrivalsSpawned += 1;
     if (spawned && spawned.critic) {
       state.eventBanner = '★ A CRITIC ARRIVES — double coins, half patience!';
@@ -146,7 +191,8 @@ export function update(state, dt) {
     }
   }
   // Partikel ambient tema (hujan/ember/mote) lewat RNG visual yang sama.
-  const theme = themeFor(state.day);
+  // Tema efektif menghormati TODAY'S MARKET (visual saja).
+  const theme = effectiveThemeFor(state.day, state.dailyMarket);
   state.ambientTimer += dt;
   if (state.ambientTimer >= 0.12) {
     state.ambientTimer = 0;

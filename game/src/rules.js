@@ -76,10 +76,73 @@ export const REAGENT_PRICES = {
   saltstar: 20,
 };
 
+// ---- Konstanta efek relic tier 2–4 (Fase 2 v3). Semua efek kecil dan
+// variasi/pool saja; tidak ada yang mengubah angka inti (resep, kuota,
+// kesabaran dasar, biaya mulligan, atau ambang rank).
+export const COOL_FRACTION = 0.1;
+export const COOL_CHARM_FRACTION = 0.15;
+export const STIR_DRAW = 2;
+export const STIR_CHARM_DRAW = 3;
+export const LONG_CANDLE_BONUS_SEC = 2;
+export const WELCOME_MAT_BONUS_SEC = 5;
+export const PURIST_VEIL_BONUS_SEC = 3;
+export const FROST_CHARM_BONUS_SEC = 1;
+export const HAGGLE_DISCOUNT = 2;
+export const SHOP_MIN_PRICE = 8;
+export const CRITIC_SEAL_MULT = 2.25;
+export const SEAR_STONE_MULT = 1.6;
+export const GOLD_STAR_SCORE = 10;
+
+// Roster relic 24 slot (Fase 2 v3). tier 0 selalu ada di pool shop;
+// tier 1/2/3 terbuka bila Ledger mencatat >= RELIC_TIER_THRESHOLDS[tier]
+// relic. `icon` memilih bentuk ikon prosedural di drawRelicIcon.
+// Efek tiap relic diterapkan di hook yang sudah ada (serveCoins,
+// resolveBrew, beginDay, activateUtilityCard, finishDay) — bukan angka
+// bebas: setiap efek membaca konstanta bernama di atas.
+export const RELIC_TIER_THRESHOLDS = [0, 3, 9, 15];
+
 export const RELICS = {
-  ladle: { id: 'ladle', name: 'Copper Ladle', price: 25, text: '+1 coin per serve' },
-  bell: { id: 'bell', name: 'Bell', price: 20, text: 'Patience warning 5s earlier' },
-  extraSlot: { id: 'extraSlot', name: 'Extra Slot', price: 40, text: '+1 cauldron slot', minDay: EXTRA_SLOT_MIN_DAY },
+  ladle: { id: 'ladle', name: 'Copper Ladle', price: 25, text: '+1 coin per serve', tier: 0, icon: { shape: 'ladle' } },
+  bell: { id: 'bell', name: 'Bell', price: 20, text: 'Patience warning 5s earlier', tier: 0, icon: { shape: 'bell' } },
+  extraSlot: { id: 'extraSlot', name: 'Extra Slot', price: 40, text: '+1 cauldron slot', minDay: EXTRA_SLOT_MIN_DAY, tier: 0, icon: { shape: 'extraSlot' } },
+  emberCup: { id: 'emberCup', name: 'Ember Cup', price: 22, text: '+1 coin when the brew holds Cinnabar', tier: 1, icon: { shape: 'cup', element: 'cinnabar' } },
+  tideCup: { id: 'tideCup', name: 'Tide Cup', price: 22, text: '+1 coin when the brew holds Moonwell', tier: 1, icon: { shape: 'cup', element: 'moonwell' } },
+  rootCup: { id: 'rootCup', name: 'Root Cup', price: 22, text: '+1 coin when the brew holds Thornroot', tier: 1, icon: { shape: 'cup', element: 'thornroot' } },
+  longCandle: { id: 'longCandle', name: 'Long Candle', price: 26, text: 'All customers +2s max patience', tier: 1, icon: { shape: 'candle' } },
+  welcomeMat: { id: 'welcomeMat', name: 'Welcome Mat', price: 18, text: 'First arrival each day +5s patience', tier: 1, icon: { shape: 'mat' } },
+  seedPouch: { id: 'seedPouch', name: 'Seed Pouch', price: 20, text: '+1 Cinnabar copy in every day deck', tier: 1, icon: { shape: 'pouch', element: 'cinnabar' } },
+  stirCharm: { id: 'stirCharm', name: 'Stirring Charm', price: 24, text: 'Stir draws 3 cards', tier: 1, icon: { shape: 'charmStir' } },
+  hiveCup: { id: 'hiveCup', name: 'Hive Cup', price: 22, text: '+1 coin when the brew holds Hivegold', tier: 2, icon: { shape: 'cup', element: 'hivegold' } },
+  shadeCup: { id: 'shadeCup', name: 'Shade Cup', price: 22, text: '+1 coin when the brew holds Gloomcap', tier: 2, icon: { shape: 'cup', element: 'gloomcap' } },
+  saltCup: { id: 'saltCup', name: 'Salt Cup', price: 22, text: '+1 coin when the brew holds Saltstar', tier: 2, icon: { shape: 'cup', element: 'saltstar' } },
+  moonPouch: { id: 'moonPouch', name: 'Moon Pouch', price: 20, text: '+1 Moonwell copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'moonwell' } },
+  thornPouch: { id: 'thornPouch', name: 'Thorn Pouch', price: 20, text: '+1 Thornroot copy in every day deck', tier: 2, icon: { shape: 'pouch', element: 'thornroot' } },
+  frostCharm: { id: 'frostCharm', name: 'Frost Charm', price: 22, text: 'Saltstar freeze lasts 5s', tier: 2, icon: { shape: 'charmFrost' } },
+  coolCharm: { id: 'coolCharm', name: 'Cool Charm', price: 20, text: 'Cool restores +15% patience', tier: 2, icon: { shape: 'charmCool' } },
+  haggleCoin: { id: 'haggleCoin', name: 'Haggling Coin', price: 28, text: 'Shop prices -2 coins (min 8)', tier: 3, icon: { shape: 'coin' } },
+  criticSeal: { id: 'criticSeal', name: "Critic's Seal", price: 26, text: 'Critics pay +25% more coins', tier: 3, icon: { shape: 'seal' } },
+  puristVeil: { id: 'puristVeil', name: "Purist's Veil", price: 22, text: 'Purists arrive with +3s patience', tier: 3, icon: { shape: 'veil' } },
+  goldStar: { id: 'goldStar', name: 'Gold Star', price: 24, text: 'Perfect days grant +10 score', tier: 3, icon: { shape: 'star' } },
+  honeyDip: { id: 'honeyDip', name: 'Honey Dipper', price: 22, text: 'Glazed also grants +1 coin', tier: 3, icon: { shape: 'dipper' } },
+  freshSprig: { id: 'freshSprig', name: 'Fresh Sprig', price: 24, text: 'Fresh draws 2 cards', tier: 3, icon: { shape: 'sprig' } },
+  searStone: { id: 'searStone', name: 'Searing Stone', price: 24, text: 'Seared pays +60% coins', tier: 3, icon: { shape: 'stone' } },
+};
+
+// Relic cangkir per elemen (+1 koin bila brew mengandung elemen itu) dan
+// relik kantong per elemen (+1 salinan di deck harian).
+export const CUP_RELICS = {
+  cinnabar: 'emberCup',
+  moonwell: 'tideCup',
+  thornroot: 'rootCup',
+  hivegold: 'hiveCup',
+  gloomcap: 'shadeCup',
+  saltstar: 'saltCup',
+};
+
+export const POUCH_RELICS = {
+  cinnabar: 'seedPouch',
+  moonwell: 'moonPouch',
+  thornroot: 'thornPouch',
 };
 
 // Tabel hari. Indeks 0 tidak dipakai agar DAY_TABLE[hari] langsung cocok.
@@ -241,13 +304,17 @@ export function serveScore(elementCount, comboAfter, catalystId) {
   return Math.round(score);
 }
 
-// Koin: 4 per elemen + relic ladle, lalu pengali Seared (katalis Cinnabar),
-// kritik x2 (HQ-5: koin saja), Purist +25% (koin saja).
+// Koin: 4 per elemen + relic ladle + koin bonus datar (cangkir elemen,
+// Honey Dipper), lalu pengali Seared (katalis Cinnabar; Searing Stone
+// 1.6), kritik x2 (HQ-5: koin saja; Critic's Seal 2.25), Purist +25%
+// (koin saja), dan bonus favorit regular +10% (plafon meta, Fase 2).
+// Panggilan lama tanpa opsi baru menghasilkan angka yang sama persis.
 export function serveCoins(elementCount, opts = {}) {
-  let coins = 4 * elementCount + (opts.ladle ? 1 : 0);
-  if (opts.seared) coins *= 1.5;
-  if (opts.critic) coins *= 2;
+  let coins = 4 * elementCount + (opts.ladle ? 1 : 0) + (opts.bonusCoins || 0);
+  if (opts.seared) coins *= opts.searedMult || 1.5;
+  if (opts.critic) coins *= opts.criticMult || 2;
   if (opts.purist) coins *= 1.25;
+  if (opts.favorite) coins *= 1.1;
   return Math.round(coins);
 }
 
@@ -295,8 +362,10 @@ export function cauldronSlotCount(ownedRelics) {
 
 // Shop antar hari: 3 tawaran. upcomingDay = hari yang akan dimasuki.
 // Extra Slot eligible saat upcomingDay >= 6 (pertama muncul di shop sesudah
-// hari 5). Relic yang sudah dimiliki tidak ditawarkan lagi.
-export function shopPool(upcomingDay, ownedRelics) {
+// hari 5). Relic yang sudah dimiliki tidak ditawarkan lagi. Fase 2: tier
+// relic terbuka mengikuti jumlah relic di Ledger (perluasan pool antar
+// run, bukan power gratis); ledgerCount 0 = pool v2 persis (3 relic tier 0).
+export function shopPool(upcomingDay, ownedRelics, ledgerCount = 0) {
   const pool = [];
   for (const id of unlockedElements(upcomingDay)) {
     pool.push({ kind: 'reagent', id, price: REAGENT_PRICES[id] });
@@ -307,13 +376,14 @@ export function shopPool(upcomingDay, ownedRelics) {
   for (const r of Object.values(RELICS)) {
     if (ownedRelics.includes(r.id)) continue;
     if (r.minDay && upcomingDay < r.minDay) continue;
+    if (ledgerCount < (RELIC_TIER_THRESHOLDS[r.tier] || 0)) continue;
     pool.push({ kind: 'relic', id: r.id, price: r.price });
   }
   return pool;
 }
 
-export function generateShopOffers(upcomingDay, ownedRelics, rng) {
-  const bag = shopPool(upcomingDay, ownedRelics);
+export function generateShopOffers(upcomingDay, ownedRelics, rng, ledgerCount = 0) {
+  const bag = shopPool(upcomingDay, ownedRelics, ledgerCount);
   const offers = [];
   while (offers.length < 3 && bag.length > 0) {
     const at = Math.floor(rng() * bag.length);
@@ -352,4 +422,5 @@ export const TITLE_CONTROLS = [
   'Click a customer to target them for the next serve.',
   'R = mulligan: discard your whole hand, draw 5 new cards (2 coins, combo resets).',
   'Space = brew, X = dump, R = mulligan, M = mute, P = pause.',
+  'L = view the Ledger, N = new Ledger (resets the collection).',
 ];
