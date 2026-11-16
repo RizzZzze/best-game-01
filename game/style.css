@@ -1,0 +1,38 @@
+/* Alembic Rush page theme: dark apothecary backdrop around the canvas.
+   All in-game art is drawn on the canvas itself; this file only frames it. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #140d08;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.stage {
+  width: min(100vw, 177.78vh);
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #1d130b;
+  cursor: pointer;
+  outline: none;
+}
