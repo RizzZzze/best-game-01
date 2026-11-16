@@ -1,12 +1,11 @@
 // customers.js — antrean, timer kesabaran, dan pembangkit pesanan.
-// Fase 1: konstruksi pelanggan + spawn. tickQueue (penurunan kesabaran dan
-// walk-out) diimplementasi penuh di fase 2 (loop playable).
 
 import {
   criticPatience,
   dayConfig,
   generateRecipe,
   rollPurist,
+  warningRemaining,
 } from './rules.js';
 
 let nextCustomerId = 1;
@@ -44,9 +43,29 @@ export function spawnNext(queue, day, rng, arrivalIndex, criticSlots) {
   return customer;
 }
 
-// FASE 2: turunkan patience tiap pelanggan sebesar dt (0 saat freeze),
-// kembalikan daftar walk-out, tandai warned saat melewati ambang.
-// Stub fase 1: antrean statis, tidak ada walk-out.
-export function tickQueue(/* queue, dt, frozen, hasBell */) {
-  return [];
+// Turunkan patience tiap pelanggan sebesar dt (0 saat freeze). Pelanggan
+// yang kesabarannya habis keluar dari antrean dan dikembalikan sebagai
+// walkouts. Pelanggan yang baru melewati ambang peringatan dikembalikan
+// sebagai newlyWarned (sekali saja, lewat flag warned) agar main.js bisa
+// membunyikan tick. Tidak mengubah skor/hati/combo — itu urusan main.js.
+export function tickQueue(queue, dt, frozen, hasBell) {
+  const walkouts = [];
+  const newlyWarned = [];
+  if (!frozen) {
+    for (let i = queue.length - 1; i >= 0; i -= 1) {
+      const customer = queue[i];
+      customer.patience = Math.max(0, customer.patience - dt);
+      if (customer.patience <= 0) {
+        walkouts.push(customer);
+        queue.splice(i, 1);
+      } else if (
+        !customer.warned &&
+        customer.patience <= warningRemaining(customer.maxPatience, hasBell)
+      ) {
+        customer.warned = true;
+        newlyWarned.push(customer);
+      }
+    }
+  }
+  return { walkouts, newlyWarned };
 }

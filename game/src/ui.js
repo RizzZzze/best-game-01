@@ -33,6 +33,23 @@ export function shopCardRect(index) {
   return { x: 140 + index * 340, y: 250, w: 300, h: 260 };
 }
 
+// Zona klik layar play — sumber tunggal untuk gambar + hit-test main.js.
+export function handCardRect(handLength, index) {
+  const x = 640 - ((handLength - 1) * 122) / 2 + index * 122;
+  return { x: x - 52, y: 520, w: 104, h: 130 };
+}
+
+export function cauldronSlotRect(slotCount, index) {
+  const x = 640 - ((slotCount - 1) * 62) / 2 + index * 62;
+  return { x: x - 26, y: 374, w: 52, h: 52 };
+}
+
+export const CATALYST_RECT = { x: 790, y: 370, w: 120, h: 60 };
+
+export function customerRect(index) {
+  return { x: 160 + index * 300, y: 96, w: 260, h: 150 };
+}
+
 function heartsLine(hearts, max) {
   let line = '';
   for (let i = 0; i < max; i += 1) line += i < hearts ? '♥ ' : '♡ ';
@@ -100,9 +117,11 @@ function patienceColor(fraction) {
 
 function drawCustomers(ctx, state) {
   const queue = state.queue || [];
+  const shake = state.rejectFlash > 0 ? Math.sin(state.rejectFlash * 30) * 5 : 0;
   queue.forEach((customer, i) => {
-    const x = 160 + i * 300;
-    const y = 96;
+    const base = customerRect(i);
+    const x = base.x + (state.targetId === customer.id ? shake : 0);
+    const y = base.y;
     drawPanel(ctx, x, y, 260, 150, 12);
     const fraction = customer.maxPatience > 0 ? customer.patience / customer.maxPatience : 0;
     ctx.strokeStyle = patienceColor(fraction);
@@ -126,7 +145,8 @@ function drawCustomers(ctx, state) {
 }
 
 function drawCauldron(ctx, state) {
-  const cx = 640;
+  const shake = state.rejectFlash > 0 ? Math.sin(state.rejectFlash * 30) * 5 : 0;
+  const cx = 640 + shake;
   const cy = 400;
   ctx.fillStyle = '#0f0a06';
   ctx.beginPath();
@@ -138,23 +158,24 @@ function drawCauldron(ctx, state) {
   drawText(ctx, 'CAULDRON', cx, cy - 96, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
   const slots = state.cauldron ? state.cauldron.slots : [];
   slots.forEach((cardId, i) => {
-    const x = cx - ((slots.length - 1) * 62) / 2 + i * 62;
-    drawPanel(ctx, x - 26, cy - 26, 52, 52, 8);
-    if (cardId) drawElementDisc(ctx, ELEMENT_BY_ID[cardId], x, cy, 20);
+    const rect = cauldronSlotRect(slots.length, i);
+    drawPanel(ctx, rect.x + shake, rect.y, rect.w, rect.h, 8);
+    if (cardId) drawElementDisc(ctx, ELEMENT_BY_ID[cardId], rect.x + shake + 26, cy, 20);
   });
-  drawPanel(ctx, cx + 150, cy - 30, 120, 60, 8);
-  drawText(ctx, 'CATALYST', cx + 210, cy - 40, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+  drawPanel(ctx, CATALYST_RECT.x, CATALYST_RECT.y, CATALYST_RECT.w, CATALYST_RECT.h, 8);
+  drawText(ctx, 'CATALYST', CATALYST_RECT.x + CATALYST_RECT.w / 2, CATALYST_RECT.y - 10, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
   if (state.cauldron && state.cauldron.catalyst) {
-    drawElementDisc(ctx, ELEMENT_BY_ID[state.cauldron.catalyst], cx + 210, cy, 20);
+    drawElementDisc(ctx, ELEMENT_BY_ID[state.cauldron.catalyst], CATALYST_RECT.x + CATALYST_RECT.w / 2, cy, 20);
   }
 }
 
 function drawHand(ctx, state) {
   const hand = state.hand || [];
   hand.forEach((cardId, i) => {
-    const x = 640 - ((hand.length - 1) * 122) / 2 + i * 122;
-    const y = 520;
-    drawPanel(ctx, x - 52, y, 104, 130, 10);
+    const rect = handCardRect(hand.length, i);
+    const x = rect.x + rect.w / 2;
+    const y = rect.y;
+    drawPanel(ctx, rect.x, rect.y, rect.w, rect.h, 10);
     if (state.selected === i) {
       ctx.strokeStyle = PALETTE.copperBright;
       ctx.lineWidth = 3;
@@ -184,7 +205,7 @@ function drawPlay(ctx, state) {
   drawCauldron(ctx, state);
   drawHand(ctx, state);
   drawText(ctx, PLAY_CONTROLS_LINE, 640, 700, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
-  if (state.notice) {
+  if (state.notice && state.noticeLeft > 0) {
     drawText(ctx, state.notice, 640, 80, { font: '22px Georgia, serif', align: 'center', color: PALETTE.copperBright });
   }
 }

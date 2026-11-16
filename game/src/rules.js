@@ -15,6 +15,11 @@ export const MAX_QUEUE = 4;
 export const PERFECT_DAY_SCORE = 50;
 export const PERFECT_DAY_COINS = 10;
 export const SPAWN_INTERVAL_SEC = 6;
+export const INITIAL_SPAWNS = 2;
+export const CRITIC_FIRST_SLOT_INDEX = 1;
+export const RECIPE_MAX_REPEATS = 3;
+export const NOTICE_DURATION_SEC = 2.5;
+export const REJECT_FLASH_SEC = 0.6;
 export const ARRIVAL_BUFFER = 5;
 export const FREEZE_SEC = 4;
 export const PURIST_START_DAY = 7;
@@ -146,7 +151,7 @@ export function generateRecipe(day, rng) {
   while (recipe.length < size && guard < 200) {
     guard += 1;
     const el = pool[Math.floor(rng() * pool.length)];
-    if ((counts[el] || 0) >= 3) continue;
+    if ((counts[el] || 0) >= RECIPE_MAX_REPEATS) continue;
     counts[el] = (counts[el] || 0) + 1;
     recipe.push(el);
   }
@@ -172,7 +177,7 @@ export function planCriticSlots(day, rng) {
   const n = cfg.critics;
   if (n === 0) return [];
   const pool = [];
-  for (let i = 1; i < cfg.quota; i += 1) pool.push(i);
+  for (let i = CRITIC_FIRST_SLOT_INDEX; i < cfg.quota; i += 1) pool.push(i);
   const slots = [];
   while (slots.length < n && pool.length > 0) {
     const at = Math.floor(rng() * pool.length);
