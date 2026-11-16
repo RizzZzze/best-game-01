@@ -436,7 +436,7 @@ export function handlePlayClick(state, x, y) {
         if (isElement(cardId) && placeInSlot(state.cauldron, i, cardId)) {
           state.hand.splice(state.selected, 1);
           state.selected = null;
-          state.audio.bubble();
+          state.audio.bubble(cardId);
         }
       }
       return state;
@@ -452,7 +452,7 @@ export function handlePlayClick(state, x, y) {
       if (isElement(cardId) && placeCatalyst(state.cauldron, cardId)) {
         state.hand.splice(state.selected, 1);
         state.selected = null;
-        state.audio.bubble();
+        state.audio.bubble(cardId);
       }
     }
     return state;
@@ -467,7 +467,7 @@ export function handlePlayClick(state, x, y) {
           const slot = firstEmptySlot(state.cauldron);
           if (slot !== -1 && placeInSlot(state.cauldron, slot, cardId)) {
             state.hand.splice(i, 1);
-            state.audio.bubble();
+            state.audio.bubble(cardId);
           }
           state.selected = null;
         }
@@ -533,8 +533,15 @@ export function boot(canvas) {
     // Abaikan: hook tes tidak tersedia di konteks ini.
   }
   bindInput(canvas, {
-    onClick: (x, y) => handleClick(state, x, y),
-    onKey: (key) => handleKey(state, key),
+    // Gestur pertama membuka AudioContext (kebijakan autoplay) + musik.
+    onClick: (x, y) => {
+      state.audio.unlock();
+      handleClick(state, x, y);
+    },
+    onKey: (key) => {
+      state.audio.unlock();
+      handleKey(state, key);
+    },
   });
   let last = performance.now();
   function frame(now) {
