@@ -13,6 +13,7 @@ import {
   INITIAL_SPAWNS,
   PARADE_PATIENCE_FACTOR,
   RAIN_PATIENCE_FACTOR,
+  RITE_CRITIC_VISITS,
   SPAWN_INTERVAL_SEC,
   THEME_VARIANT_CHANCE,
   TOTAL_DAYS,
@@ -75,8 +76,12 @@ export function beginDay(state) {
   const owned = state.ownedRelics || [];
   state.dayVariant = rollDayVariant(state);
   const theme = effectiveThemeFor(state.day, state.dailyMarket, state.dayVariant);
-  // Vial of the Blood Moon: hari rite menambah 1 slot kritik.
-  const extraCritics = theme.id === 'bloodMoonRite' ? 1 : 0;
+  // Vial of the Blood Moon: hari rite = TEPAT 2 kunjungan Critic. Slot
+  // tambahan = selisih dari jadwal dasar (hari 1-4: +2, hari 5-7: +1,
+  // hari 8-10: +0) — +1 mentah akan membuat hari 8-10 menjadi 3.
+  const extraCritics = theme.id === 'bloodMoonRite'
+    ? Math.max(0, RITE_CRITIC_VISITS - cfg.critics)
+    : 0;
   // Charter of the Fog Guild: satu bonus order pada fog day.
   state.bonusPending = FOG_THEME_IDS.includes(theme.id) && owned.includes('fogCharter') ? 1 : 0;
   state.deck = buildDeck(state.day, [...state.extraCards], state.rng);

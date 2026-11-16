@@ -336,10 +336,16 @@ export function sameMultiset(a, b) {
   return true;
 }
 
+// Vial of the Blood Moon: pada hari rite, Critic berkunjung TEPAT 2 kali
+// (brief + teks relic: "the Critic visits twice") — bukan +1 slot, karena
+// hari 8-10 yang sudah punya 2 slot dasar akan menjadi 3.
+export const RITE_CRITIC_VISITS = 2;
+
 // HQ-5: kritik menempati slot kedatangan TETAP, bukan peluang. Slot dipilih
 // dari indeks kedatangan 1..quota-1 (0-based), jadi kritik dijamin muncul
 // sebelum kuota hari itu bisa tercapai. Deterministik per seed.
-// extraCritics (Vial of the Blood Moon): +1 slot kritik pada hari rite.
+// extraCritics: slot kritik tambahan di atas jadwal dasar (dipakai beginDay
+// untuk menegakkan tepat RITE_CRITIC_VISITS kunjungan pada hari rite).
 export function planCriticSlots(day, rng, extraCritics = 0) {
   const cfg = dayConfig(day);
   const n = cfg.critics + extraCritics;
