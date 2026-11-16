@@ -401,7 +401,7 @@ export function handleKey(state, key) {
 // pelanggan = target. Klik area kosong = batalkan pilihan.
 export function handlePlayClick(state, x, y) {
   for (let i = 0; i < state.queue.length; i += 1) {
-    if (pointInRect(x, y, customerRect(i))) {
+    if (pointInRect(x, y, customerRect(i, state.queue.length))) {
       state.targetId = state.queue[i].id;
       return state;
     }

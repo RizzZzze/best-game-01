@@ -5,9 +5,11 @@
 import {
   ELEMENT_BY_ID,
   PLAY_CONTROLS_LINE,
+  RELICS,
   TITLE_CONTROLS,
   UTILITIES,
   dayConfig,
+  deckComposition,
   offerText,
   offerTitle,
   rankFor,
@@ -35,8 +37,12 @@ export function shopCardRect(index) {
 
 // Zona klik layar play — sumber tunggal untuk gambar + hit-test main.js.
 export function handCardRect(handLength, index) {
-  const x = 640 - ((handLength - 1) * 122) / 2 + index * 122;
-  return { x: x - 52, y: 520, w: 104, h: 130 };
+  const w = 104;
+  const spacing =
+    handLength <= 1 ? 122 : Math.min(122, (1240 - w) / (handLength - 1));
+  const total = w + (handLength - 1) * spacing;
+  const x = (1280 - total) / 2 + index * spacing;
+  return { x, y: 520, w, h: 130 };
 }
 
 export function cauldronSlotRect(slotCount, index) {
@@ -46,8 +52,14 @@ export function cauldronSlotRect(slotCount, index) {
 
 export const CATALYST_RECT = { x: 790, y: 370, w: 120, h: 60 };
 
-export function customerRect(index) {
-  return { x: 160 + index * 300, y: 96, w: 260, h: 150 };
+// Panel pelanggan terpusat sebagai grup: 4 panel (280px + gap 16) muat
+// dalam 1280px dengan margin 56px di tiap sisi.
+export function customerRect(index, count) {
+  const w = 280;
+  const gap = 16;
+  const total = count * w + (count - 1) * gap;
+  const x = (1280 - total) / 2 + index * (w + gap);
+  return { x, y: 96, w, h: 150 };
 }
 
 function heartsLine(hearts, max) {
@@ -102,6 +114,15 @@ function drawDayIntro(ctx, state) {
     drawText(ctx, note, 640, y, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
     y += 30;
   }
+  const deckSize = deckComposition(state.day, state.extraCards || []).length;
+  const relicNames = (state.ownedRelics || []).map((id) => RELICS[id].name);
+  drawText(
+    ctx,
+    `Deck: ${deckSize} cards   Relics: ${relicNames.length > 0 ? relicNames.join(', ') : 'none yet'}`,
+    640,
+    y + 10,
+    { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim },
+  );
   drawButton(ctx, LAYOUT.beginButton, 'BEGIN SHIFT', { fill: '#6b4423' });
   drawText(ctx, `Score: ${state.score}   Coins: ${state.coins}   Hearts: ${heartsLine(state.hearts, 5)}`, 640, 640, {
     font: '20px Georgia, serif',
@@ -119,10 +140,10 @@ function drawCustomers(ctx, state) {
   const queue = state.queue || [];
   const shake = state.rejectFlash > 0 ? Math.sin(state.rejectFlash * 30) * 5 : 0;
   queue.forEach((customer, i) => {
-    const base = customerRect(i);
+    const base = customerRect(i, queue.length);
     const x = base.x + (state.targetId === customer.id ? shake : 0);
     const y = base.y;
-    drawPanel(ctx, x, y, 260, 150, 12);
+    drawPanel(ctx, x, y, base.w, base.h, 12);
     const fraction = customer.maxPatience > 0 ? customer.patience / customer.maxPatience : 0;
     ctx.strokeStyle = patienceColor(fraction);
     ctx.lineWidth = 6;
@@ -132,11 +153,19 @@ function drawCustomers(ctx, state) {
     drawText(ctx, '◉', x + 40, y + 48, { font: '24px Georgia, serif', align: 'center' });
     const tag = customer.critic ? 'CRITIC' : customer.purist ? 'PURIST' : 'GUEST';
     drawText(ctx, tag, x + 80, y + 36, { font: '20px Georgia, serif', color: PALETTE.copperBright });
-    drawText(ctx, `${Math.ceil(customer.patience)}s`, x + 80, y + 62, { font: '20px Georgia, serif' });
+    drawText(ctx, `${Math.ceil(customer.patience)}s`, x + 80, y + 62, {
+      font: '20px Georgia, serif',
+      color: patienceColor(fraction),
+    });
     if (state.targetId === customer.id) {
       ctx.strokeStyle = PALETTE.copperBright;
       ctx.lineWidth = 3;
-      ctx.strokeRect(x - 4, y - 4, 268, 158);
+      ctx.strokeRect(x - 4, y - 4, base.w + 8, base.h + 8);
+      drawText(ctx, '▼ TARGET', x + base.w / 2, y - 10, {
+        font: '20px Georgia, serif',
+        align: 'center',
+        color: PALETTE.copperBright,
+      });
     }
     customer.recipe.forEach((elId, j) => {
       drawElementDisc(ctx, ELEMENT_BY_ID[elId], x + 34 + j * 52, y + 108, 20);
@@ -201,13 +230,37 @@ function drawPlay(ctx, state) {
   drawText(ctx, heartsLine(state.hearts, 5), 700, 40, { font: '22px Georgia, serif', color: PALETTE.danger });
   drawText(ctx, `COMBO x${state.combo}`, 900, 40, { font: '22px Georgia, serif' });
   drawText(ctx, state.audio && state.audio.muted ? 'M: MUTED' : 'M: SOUND', 1100, 40, { font: '22px Georgia, serif' });
+  if (state.freezeLeft > 0) {
+    drawText(ctx, `FROZEN ${Math.ceil(state.freezeLeft)}s`, 1256, 70, {
+      font: '20px Georgia, serif',
+      align: 'right',
+      color: '#8ec9ff',
+    });
+  }
   drawCustomers(ctx, state);
   drawCauldron(ctx, state);
   drawHand(ctx, state);
   drawText(ctx, PLAY_CONTROLS_LINE, 640, 700, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
-  if (state.notice && state.noticeLeft > 0) {
-    drawText(ctx, state.notice, 640, 80, { font: '22px Georgia, serif', align: 'center', color: PALETTE.copperBright });
+  if (state.notice && state.noticeLeft > 0 && !state.paused) {
+    drawText(ctx, state.notice, 640, 276, { font: '22px Georgia, serif', align: 'center', color: PALETTE.copperBright });
   }
+}
+
+function wrapLines(ctx, text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const trial = line ? `${line} ${word}` : word;
+    if (ctx.measureText(trial).width <= maxWidth || line === '') {
+      line = trial;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line !== '') lines.push(line);
+  return lines;
 }
 
 function drawDayResult(ctx, state) {
@@ -218,10 +271,16 @@ function drawDayResult(ctx, state) {
     align: 'center',
     color: PALETTE.copperBright,
   });
-  drawText(ctx, `Served ${stats.served}   Walked out ${stats.lost}   Score ${state.score}   Coins ${state.coins}`, 640, 160, {
-    font: '22px Georgia, serif',
-    align: 'center',
-  });
+  drawText(
+    ctx,
+    `Served ${stats.served}   Walked out ${stats.lost}   Score ${state.score}   Coins ${state.coins}   Hearts ${heartsLine(state.hearts, 5)}`,
+    640,
+    160,
+    {
+      font: '22px Georgia, serif',
+      align: 'center',
+    },
+  );
   if (stats.perfect) {
     drawText(ctx, 'Perfect day! +50 score, +10 coins.', 640, 196, {
       font: '20px Georgia, serif',
@@ -249,10 +308,14 @@ function drawDayResult(ctx, state) {
       font: '26px Georgia, serif',
       align: 'center',
     });
-    drawText(ctx, offerText(offer), rect.x + rect.w / 2, rect.y + 96, {
-      font: '20px Georgia, serif',
-      align: 'center',
-      color: PALETTE.creamDim,
+    ctx.font = '20px Georgia, serif';
+    const lines = wrapLines(ctx, offerText(offer), rect.w - 24);
+    lines.slice(0, 3).forEach((line, li) => {
+      drawText(ctx, line, rect.x + rect.w / 2, rect.y + 96 + li * 26 - (lines.length - 1) * 8, {
+        font: '20px Georgia, serif',
+        align: 'center',
+        color: PALETTE.creamDim,
+      });
     });
     drawText(ctx, `${offer.price} coins  [${i + 1}]`, rect.x + rect.w / 2, rect.y + 200, {
       font: '22px Georgia, serif',
