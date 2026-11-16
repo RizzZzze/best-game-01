@@ -291,6 +291,10 @@ function drawPlay(ctx, state) {
       color: '#8ec9ff',
     });
   }
+  drawDayStrip(ctx, state);
+  drawObjectiveChip(ctx);
+  drawRelicStack(ctx, state);
+  drawDeckCounts(ctx, state);
   drawCustomers(ctx, state);
   drawCauldron(ctx, state);
   drawHand(ctx, state);
@@ -438,4 +442,105 @@ export function drawScreen(ctx, state) {
   else if (state.screen === 'gameover') drawGameOver(ctx, state);
   drawVignette(ctx, 1280, 720);
   if (state.paused && state.screen === 'play') drawPauseOverlay(ctx);
+}
+
+// ---- Tambahan HUD Fase B (di bawah deklarasi yang sudah ada) ----
+
+// B3: strip progres 10 hari — 10 pip bertint tema harinya; hari selesai
+// terisi, hari berjalan bercahaya, hari depan berongga. Tanpa teks/angka
+// kecil: maknanya dibaca dari posisi pip + DAY x/10 di atasnya.
+function drawDayStrip(ctx, state) {
+  const x0 = 16;
+  const y = 58;
+  const w = 248;
+  const h = 30;
+  ctx.fillStyle = 'rgba(20,13,8,0.6)';
+  ctx.strokeStyle = 'rgba(196,123,58,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(x0, y, w, h, 15);
+  ctx.fill();
+  ctx.stroke();
+  const time = state.animTime || 0;
+  for (let d = 1; d <= 10; d += 1) {
+    const cx = x0 + 16 + (d - 1) * 24;
+    const cy = y + h / 2;
+    const theme = themeFor(d);
+    if (d < state.day) {
+      ctx.fillStyle = theme.hudTint;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d === state.day) {
+      const pulse = 0.7 + 0.3 * Math.sin(time * 3);
+      ctx.save();
+      ctx.shadowColor = theme.hudTint;
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = theme.hudTint;
+      ctx.globalAlpha = pulse;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#1d130b';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = theme.hudTint;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// B4: chip objektif — syarat WIN dan LOSE eksplisit, kiri tengah.
+function drawObjectiveChip(ctx) {
+  ctx.font = '20px Georgia, serif';
+  const winLine = 'WIN: clear the Day 10 quota';
+  const loseLine = 'LOSE: 0 hearts left';
+  const w = Math.max(ctx.measureText(winLine).width, ctx.measureText(loseLine).width) + 28;
+  const x = 56;
+  const y = 258;
+  const h = 68;
+  drawPanel(ctx, x, y, w, h, 10);
+  drawText(ctx, winLine, x + 14, y + 28, { font: '20px Georgia, serif', color: PALETTE.ok });
+  drawText(ctx, loseLine, x + 14, y + 56, { font: '20px Georgia, serif', color: PALETTE.danger });
+}
+
+// B1: relic yang dimiliki — tumpukan vertikal ikon + nama di kiri bawah,
+// tidak digambar bila belum ada relic. Vertikal (bukan baris horizontal)
+// agar tidak pernah bertabrakan dengan tangan, notice, atau FROZEN.
+function drawRelicStack(ctx, state) {
+  const owned = state.ownedRelics || [];
+  if (owned.length === 0) return;
+  ctx.font = '20px Georgia, serif';
+  let nameW = 0;
+  for (const id of owned) nameW = Math.max(nameW, ctx.measureText(RELICS[id].name).width);
+  const w = 56 + nameW;
+  const h = owned.length * 32 + 16;
+  const x = 52;
+  const y = 646 - h;
+  drawPanel(ctx, x, y, w, h, 10);
+  owned.forEach((id, i) => {
+    const cy = y + 16 + i * 32 + 8;
+    drawRelicIcon(ctx, id, x + 24, cy, 11);
+    drawText(ctx, RELICS[id].name, x + 44, cy + 7, { font: '20px Georgia, serif' });
+  });
+}
+
+// B2: hitungan deck/discard — pil di kanan bawah, cerminan relic stack.
+function drawDeckCounts(ctx, state) {
+  ctx.font = '20px Georgia, serif';
+  const text = `Deck ${(state.deck || []).length} · Discard ${(state.discard || []).length}`;
+  const w = ctx.measureText(text).width + 32;
+  const h = 34;
+  const x = 1256 - w;
+  const y = 612;
+  drawPanel(ctx, x, y, w, h, 17);
+  drawText(ctx, text, x + w / 2, y + 23, { font: '20px Georgia, serif', align: 'center' });
 }
