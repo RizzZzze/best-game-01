@@ -19,12 +19,14 @@ import {
   ELEMENT_BY_ID,
   GAME_HEIGHT,
   GAME_WIDTH,
+  HAND_SIZE,
   INITIAL_SPAWNS,
   MAX_HEARTS,
   NOTICE_DURATION_SEC,
   SPAWN_INTERVAL_SEC,
   START_HEARTS,
   TOTAL_DAYS,
+  UNLOCK_COPIES,
   cauldronSlotCount,
   dayConfig,
   generateShopOffers,
@@ -88,7 +90,7 @@ export function introNotesFor(day) {
     notes.push('Match the recipe exactly, then brew with Space.');
   }
   for (const id of newlyUnlocked(day)) {
-    notes.push(`${ELEMENT_BY_ID[id].name} unlocked and added to the deck (3 copies).`);
+    notes.push(`${ELEMENT_BY_ID[id].name} unlocked and added to the deck (${UNLOCK_COPIES} copies).`);
   }
   if (day === 5) notes.push('Critics arrive: half patience, double coins.');
   if (day === 6) notes.push('Extra Slot relic is now sold in the shop.');
@@ -283,6 +285,22 @@ export function dumpCauldron(state) {
   return { status: 'dumped', removed };
 }
 
+// Mulligan tombol R (AMENDMEN BRIEF, putusan Xora, tuning Tahap 2): buang
+// SELURUH tangan lalu tarik 5 kartu baru dari deck (reshuffle discard bila
+// deck kurang), combo RESET, kauldron TIDAK tersentuh, tanpa biaya lain.
+// Boleh dipakai kapan saja saat play (tidak saat pause/layar lain).
+export function mulligan(state) {
+  if (state.screen !== 'play' || state.paused) return state;
+  const discarded = state.hand.slice();
+  state.discard.push(...discarded);
+  state.hand = [];
+  state.selected = null;
+  drawCards(state.hand, state.deck, state.discard, HAND_SIZE, state.rng);
+  state.combo = 0;
+  setNotice(state, 'Mulligan — fresh hand, combo reset.');
+  return state;
+}
+
 // Aktivasi kartu utilitas (klik kedua pada kartu terpilih): Stir tarik 2,
 // Cool +10% kesabaran antrean, Purge buang isi kauldron TANPA biaya —
 // combo TIDAK berubah dan katalis tetap (HQ-4).
@@ -367,6 +385,20 @@ export function update(state, dt) {
   if (state.servedToday >= cfg.quota) {
     return finishDay(state);
   }
+  // Perbaikan soft-lock (putusan Xora): hari berakhir saat antrean kosong
+  // DAN kedatangan habis, meski kuota belum tercapai — permainan tidak
+  // boleh menggantung. Hari 10 tanpa kuota = kalah; menang hanya bila
+  // kuota hari 10 terpenuhi.
+  if (
+    state.queue.length === 0 &&
+    state.arrivalsSpawned >= state.arrivalsPlanned &&
+    state.servedToday < cfg.quota
+  ) {
+    if (state.day >= TOTAL_DAYS) {
+      return loseRun(state, 'Day 10 ended with the quota unmet — the queue ran dry.');
+    }
+    return finishDay(state);
+  }
   // Emisi gelembung kauldron: warna dari elemen yang sedang terisi.
   // Math.random (bukan state.rng) agar visual tidak menggeser resep/antrean.
   const filled = state.cauldron.slots.filter(Boolean);
@@ -402,6 +434,10 @@ export function handleKey(state, key) {
     }
     if (lower === 'x') {
       dumpCauldron(state);
+      return state;
+    }
+    if (lower === 'r') {
+      mulligan(state);
       return state;
     }
   } else if (state.screen === 'dayResult') {

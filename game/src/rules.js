@@ -110,6 +110,10 @@ export const UNLOCK_DAY = {
   saltstar: 7,
 };
 
+// AMENDMEN BRIEF (putusan Xora, tuning Tahap 1): tiap elemen baru menambah
+// 5 kopi ke deck (semula 3). Deck dasar: 12/17/22/27 kartu di hari 1/3/5/7.
+export const UNLOCK_COPIES = 5;
+
 export function unlockedElements(day) {
   return ELEMENTS.filter((e) => UNLOCK_DAY[e.id] <= day).map((e) => e.id);
 }
@@ -254,7 +258,7 @@ export function deckComposition(day, extraCards) {
   const deck = startingDeck();
   for (const id of ['hivegold', 'gloomcap', 'saltstar']) {
     if (UNLOCK_DAY[id] <= day) {
-      for (let i = 0; i < 3; i += 1) deck.push(id);
+      for (let i = 0; i < UNLOCK_COPIES; i += 1) deck.push(id);
     }
   }
   if (extraCards) deck.push(...extraCards);
@@ -315,14 +319,17 @@ export function offerText(offer) {
 
 // Baris kontrol play, verbatim brief. Jangan diubah tanpa putusan HQ.
 export const PLAY_CONTROLS_LINE =
-  'Click card = play, Click slot = return, Click customer = target, Space = brew, X = dump, M = mute, P = pause';
+  'Click card = play, Click slot = return, Click customer = target, Space = brew, X = dump, R = mulligan, M = mute, P = pause';
 
 // Koreografi klik sebenarnya (HQ-1), dijelaskan lengkap di title screen.
+// Baris ringkasan kunci di title memakai token yang sama persis dengan
+// PLAY_CONTROLS_LINE (amendmen mulligan), ditambah 1 baris semantik R.
 export const TITLE_CONTROLS = [
   'Click a card to select it, then click a cauldron slot to place it.',
   'Click the selected card again to auto-place it in the first empty slot.',
   'Click the catalyst slot to place the selected card as catalyst.',
   'Click a filled slot to return its card to your hand.',
   'Click a customer to target them for the next serve.',
-  'Space = brew, X = dump cauldron, M = mute, P = pause.',
+  'R = mulligan: discard your whole hand and draw 5 new cards (combo resets).',
+  'Space = brew, X = dump, R = mulligan, M = mute, P = pause.',
 ];
