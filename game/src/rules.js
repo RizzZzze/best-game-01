@@ -540,3 +540,12 @@ export const TITLE_CONTROLS = [
   'Space = brew, X = dump, R = mulligan, M = mute, P = pause.',
   'L = view the Ledger, N = new Ledger (resets the collection).',
 ];
+
+// Legenda ringkas untuk hub v3b (2 baris): layar hub memuat grid
+// koleksi + career + roster sehingga 8 baris TITLE_CONTROLS tidak muat.
+// Token kunci sama persis dengan PLAY_CONTROLS_LINE; semantik mulligan
+// (2 koin, combo reset) tetap dijelaskan di baris kedua.
+export const HUB_CONTROLS = [
+  'Click card = play · Click slot = return · Click customer = target · Space = brew · X = dump · M = mute · P = pause',
+  'R = mulligan: redraw your hand for 2 coins, combo resets · L = view the Ledger · N = new Ledger (resets the collection)',
+];

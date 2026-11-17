@@ -597,6 +597,12 @@ export function handleClick(state, x, y) {
     if (pointInRect(x, y, LAYOUT.continueButton)) return continueFromResults(state);
   } else if (state.screen === 'win' || state.screen === 'gameover') {
     if (pointInRect(x, y, LAYOUT.playAgainButton)) return startNewRun(state);
+    // HUB hanya di layar win (v3b): kembali ke hub tanpa memulai run.
+    if (state.screen === 'win' && pointInRect(x, y, LAYOUT.hubButton)) {
+      state.screen = 'title';
+      state.newLedgerArmed = false;
+      return state;
+    }
   }
   return state;
 }

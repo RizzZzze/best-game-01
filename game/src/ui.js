@@ -5,6 +5,7 @@
 import {
   ELEMENTS,
   ELEMENT_BY_ID,
+  HUB_CONTROLS,
   PLAY_CONTROLS_LINE,
   RELICS,
   TITLE_CONTROLS,
@@ -61,6 +62,7 @@ export const LAYOUT = {
   beginButton: { x: 490, y: 520, w: 300, h: 60 },
   continueButton: { x: 490, y: 612, w: 300, h: 56 },
   playAgainButton: { x: 490, y: 520, w: 300, h: 64 },
+  hubButton: { x: 810, y: 520, w: 170, h: 64 },
   resumeButton: { x: 490, y: 420, w: 300, h: 56 },
   ledgerButton: { x: 1094, y: 664, w: 170, h: 40 },
   newLedgerButton: { x: 16, y: 664, w: 170, h: 40 },
@@ -125,6 +127,82 @@ function drawTitleChipLines(ctx, lines, x, y, alignRight, fontPx = 20) {
   });
 }
 
+// Grid koleksi hub v3b: 24 sel 6x4 dengan NAMA (berbeda dari grid mini
+// ikon-saja) — owned menyala + bingkai emas, undiscovered siluet gelap
+// dengan "?" di zona ikon dan nama redup. Nama dibungkus s.d. 3 baris
+// (hanya nama terpanjang yang memakai 3 baris).
+function drawHubGrid(ctx, state, x0, y0) {
+  const owned = state.ledger ? state.ledger.relics : [];
+  const cellW = 96;
+  const cellH = 60;
+  const gap = 8;
+  Object.values(RELICS).forEach((relic, i) => {
+    const col = i % 6;
+    const row = Math.floor(i / 6);
+    const x = x0 + col * (cellW + gap);
+    const y = y0 + row * (cellH + gap);
+    const cx = x + cellW / 2;
+    const isOwned = owned.includes(relic.id);
+    drawPanel(ctx, x, y, cellW, cellH, 8);
+    drawRelicIcon(ctx, relic.id, cx, y + 15, 10);
+    if (isOwned) {
+      ctx.strokeStyle = PALETTE.copperBright;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(x + 1, y + 1, cellW - 2, cellH - 2, 8);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(15,10,6,0.85)';
+      ctx.beginPath();
+      ctx.roundRect(x, y, cellW, 30, 8);
+      ctx.fill();
+      drawText(ctx, '?', cx, y + 22, { font: '16px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+    }
+    ctx.font = '12px Georgia, serif';
+    let lines = wrapLines(ctx, relic.name, cellW - 8);
+    let size = 12;
+    if (lines.length > 3) {
+      ctx.font = '11px Georgia, serif';
+      lines = wrapLines(ctx, relic.name, cellW - 8);
+      size = 11;
+    }
+    lines = lines.slice(0, 3);
+    const tops = { 1: [46], 2: [40, 52], 3: [34, 45, 56] };
+    lines.forEach((line, li) => {
+      drawText(ctx, line, cx, y + tops[lines.length][li], {
+        font: `${size}px Georgia, serif`,
+        align: 'center',
+        color: isOwned ? PALETTE.cream : PALETTE.creamDim,
+      });
+    });
+  });
+}
+
+// Statistik career hub v3b: 4 sel 2x2 dari state ledger yang sudah ada
+// (runs, best run, total kunjungan regular, stempel market). Tidak ada
+// angka dekoratif: setiap nilai dibaca langsung dari ledger.
+function drawCareerStats(ctx, state, x0, y0) {
+  const ledger = state.ledger || {};
+  const best = ledger.bestRun;
+  const visits = PATRONS.reduce((sum, p) => sum + ((ledger.regulars && ledger.regulars[p.id] ? ledger.regulars[p.id].visits : 0) || 0), 0);
+  const cells = [
+    { label: 'RUNS', value: String(ledger.runsCompleted || 0) },
+    { label: 'BEST', value: best ? `${best.score} · ${best.rank}` : '—' },
+    { label: 'VISITS', value: String(visits) },
+    { label: 'STAMPS', value: String(ledger.marketStamps || 0) },
+  ];
+  const cellW = 271;
+  const cellH = 40;
+  const gap = 8;
+  cells.forEach((cell, i) => {
+    const x = x0 + (i % 2) * (cellW + gap);
+    const y = y0 + Math.floor(i / 2) * (cellH + gap);
+    drawPanel(ctx, x, y, cellW, cellH, 8);
+    drawText(ctx, cell.label, x + 12, y + 26, { font: '16px Georgia, serif', color: PALETTE.creamDim });
+    drawText(ctx, cell.value, x + cellW - 12, y + 27, { font: '20px Georgia, serif', align: 'right' });
+  });
+}
+
 function drawTitle(ctx, state) {
   clearScreen(ctx, 1280, 720);
   // Chip meta sesi (Fase 2) di sudut atas — kolom tengah title tidak berubah.
@@ -154,27 +232,31 @@ function drawTitle(ctx, state) {
     align: 'center',
     color: PALETTE.copperBright,
   });
-  drawText(ctx, 'potion-deck brewing: chain catalyst reactions, serve the queue before patience boils off', 640, 162, {
+  drawText(ctx, 'potion-deck brewing: chain catalyst reactions, serve the queue before patience boils off', 640, 156, {
     font: '20px Georgia, serif',
     align: 'center',
     color: PALETTE.creamDim,
   });
-  drawText(ctx, 'Serve 10 shifts without losing all five hearts', 640, 200, {
+  drawText(ctx, 'WIN: clear the Day 10 quota · LOSE: 0 hearts left', 640, 186, {
     font: '22px Georgia, serif',
     align: 'center',
   });
-  let y = 258;
-  for (const line of TITLE_CONTROLS) {
-    drawText(ctx, line, 640, y, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
-    y += 30;
-  }
-  drawOrnamentRow(ctx, ELEMENTS, 640, 495, 16);
-  drawButton(ctx, LAYOUT.startButton, 'START', { fill: '#6b4423' });
-  drawText(ctx, `Best score: ${state.bestScore}`, 640, 660, {
-    font: '20px Georgia, serif',
-    align: 'center',
-    color: PALETTE.creamDim,
+  // Hub v3b — kolom kiri grid koleksi 24 relic; kolom kanan career +
+  // roster regular. Chip sudut + tombol tidak berubah.
+  drawText(ctx, `THE LEDGER ${ledgerCount(state.ledger)}/${LEDGER_SIZE}`, 40, 212, {
+    font: '22px Georgia, serif',
+    color: PALETTE.copperBright,
   });
+  drawHubGrid(ctx, state, 40, 224);
+  drawText(ctx, 'CAREER', 690, 212, { font: '22px Georgia, serif', color: PALETTE.copperBright });
+  drawCareerStats(ctx, state, 690, 224);
+  drawText(ctx, 'REGULARS', 690, 338, { font: '22px Georgia, serif', color: PALETTE.copperBright });
+  drawRegularsRoster(ctx, state, 690, 350, 550);
+  HUB_CONTROLS.forEach((line, i) => {
+    drawText(ctx, line, 640, 526 + i * 22, { font: '18px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+  });
+  const runsDone = (state.ledger && state.ledger.runsCompleted) || 0;
+  drawButton(ctx, LAYOUT.startButton, runsDone > 0 ? 'START NEXT RUN' : 'START', { fill: '#6b4423' });
   drawButton(ctx, LAYOUT.newLedgerButton, state.newLedgerArmed ? 'SURE?' : 'NEW LEDGER', {
     fill: state.newLedgerArmed ? '#7a2a1e' : '#3a2a1c',
     font: '20px Georgia, serif',
@@ -437,38 +519,6 @@ function fitNameLines(ctx, name, maxWidth, sizes) {
   return { lines: wrapLines(ctx, name, maxWidth).slice(0, 2), size };
 }
 
-// Grid mini Ledger untuk layar gabungan (Fase 2): 24 sel ikon saja —
-// owned menyala dengan bingkai emas, undiscovered gelap dengan "?".
-// Nama lengkap relic tampil di layar Ledger, bukan di grid mini ini.
-function drawLedgerMiniGrid(ctx, state, x0, y0) {
-  const owned = state.ledger ? state.ledger.relics : [];
-  const cell = 52;
-  const gap = 8;
-  Object.values(RELICS).forEach((relic, i) => {
-    const col = i % 6;
-    const row = Math.floor(i / 6);
-    const x = x0 + col * (cell + gap);
-    const y = y0 + row * (cell + gap);
-    drawPanel(ctx, x, y, cell, cell, 8);
-    const cx = x + cell / 2;
-    const cy = y + cell / 2;
-    drawRelicIcon(ctx, relic.id, cx, cy, 16);
-    if (owned.includes(relic.id)) {
-      ctx.strokeStyle = PALETTE.copperBright;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(x + 1, y + 1, cell - 2, cell - 2, 8);
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = 'rgba(15,10,6,0.85)';
-      ctx.beginPath();
-      ctx.roundRect(x, y, cell, cell, 8);
-      ctx.fill();
-      drawText(ctx, '?', cx, cy + 7, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
-    }
-  });
-}
-
 // Roster regular untuk layar gabungan (Fase 2): baris potret + nama
 // lengkap + ikon favorit + jumlah kunjungan + titik mood. Wax Seal:
 // dendam ditandai segel lilin merah sesudah nama. Ledger of Small Debts:
@@ -517,39 +567,137 @@ function drawRegularsRoster(ctx, state, x0, y0, width) {
   });
 }
 
+// Grid statistik ringkasan hari untuk layar market v3b: 5 sel sebaris
+// (served/kuota, walk-out, skor, koin, hearts) dari dayStats + state.
+function drawMarketStatsGrid(ctx, state, stats) {
+  const cfg = dayConfig(state.day);
+  const cells = [
+    { label: 'SERVED', value: `${stats.served}/${cfg.quota}` },
+    { label: 'WALKED OUT', value: String(stats.lost) },
+    { label: 'SCORE', value: String(state.score) },
+    { label: 'COINS', value: String(state.coins) },
+    { label: 'HEARTS', value: heartsLine(state.hearts, 5) },
+  ];
+  const cellW = 230;
+  const cellH = 54;
+  const gap = 12;
+  const y = 148;
+  cells.forEach((cell, i) => {
+    const x = 40 + i * (cellW + gap);
+    drawPanel(ctx, x, y, cellW, cellH, 8);
+    drawText(ctx, cell.label, x + cellW / 2, y + 21, {
+      font: '14px Georgia, serif',
+      align: 'center',
+      color: PALETTE.creamDim,
+    });
+    drawText(ctx, cell.value, x + cellW / 2, y + 45, {
+      font: '22px Georgia, serif',
+      align: 'center',
+    });
+  });
+}
+
+// Daftar deck untuk layar market v3b: hitungan per kartu di draw pile
+// (6 elemen + utilitas yang ada), lalu ringkasan discard + hand. Semua
+// angka dari state nyata; mengembalikan y sesudah baris terakhir.
+function drawDeckList(ctx, state, x0, y0) {
+  const counts = {};
+  for (const id of state.deck || []) counts[id] = (counts[id] || 0) + 1;
+  let y = y0;
+  const pitch = 26;
+  for (const el of ELEMENTS) {
+    const cy = y + 11;
+    drawElementGlyph(ctx, el, x0 + 12, cy, 10);
+    drawText(ctx, el.name, x0 + 30, y + 19, { font: '20px Georgia, serif' });
+    drawText(ctx, `×${counts[el.id] || 0}`, x0 + 384, y + 19, {
+      font: '20px Georgia, serif',
+      align: 'right',
+      color: PALETTE.creamDim,
+    });
+    y += pitch;
+  }
+  for (const util of Object.values(UTILITIES)) {
+    if (!counts[util.id]) continue;
+    const cy = y + 11;
+    drawUtilityGlyph(ctx, util.id, x0 + 12, cy, 10);
+    drawText(ctx, util.name, x0 + 30, y + 19, { font: '20px Georgia, serif' });
+    drawText(ctx, `×${counts[util.id]}`, x0 + 384, y + 19, {
+      font: '20px Georgia, serif',
+      align: 'right',
+      color: PALETTE.creamDim,
+    });
+    y += pitch;
+  }
+  drawText(ctx, 'Discard', x0 + 30, y + 19, { font: '20px Georgia, serif', color: PALETTE.creamDim });
+  drawText(ctx, `×${(state.discard || []).length}`, x0 + 384, y + 19, {
+    font: '20px Georgia, serif',
+    align: 'right',
+    color: PALETTE.creamDim,
+  });
+  y += pitch;
+  if ((state.hand || []).length > 0) {
+    drawText(ctx, 'Hand', x0 + 30, y + 19, { font: '20px Georgia, serif', color: PALETTE.creamDim });
+    drawText(ctx, `×${state.hand.length}`, x0 + 384, y + 19, {
+      font: '20px Georgia, serif',
+      align: 'right',
+      color: PALETTE.creamDim,
+    });
+    y += pitch;
+  }
+  return y;
+}
+
+// Baris relic aktif (milik run ini) untuk layar market v3b: ikon
+// berderet, membungkus ke baris kedua bila lebih dari 12.
+function drawRelicRow(ctx, state, x0, y0) {
+  const owned = state.ownedRelics || [];
+  if (owned.length === 0) {
+    drawText(ctx, 'none yet', x0, y0 + 19, { font: '20px Georgia, serif', color: PALETTE.creamDim });
+    return;
+  }
+  owned.forEach((id, i) => {
+    const col = i % 12;
+    const row = Math.floor(i / 12);
+    drawRelicIcon(ctx, id, x0 + 16 + col * 34, y0 + 16 + row * 34, 13);
+  });
+}
+
 function drawDayResult(ctx, state) {
   clearScreen(ctx, 1280, 720);
+  // Layar market v3b lebih terang: sapuan hangat di atas latar gelap.
+  ctx.fillStyle = 'rgba(232,213,183,0.07)';
+  ctx.fillRect(0, 0, 1280, 720);
   const stats = state.dayStats || { served: 0, lost: 0 };
-  drawText(ctx, `DAY ${state.day} COMPLETE`, 640, 110, {
-    font: '48px Georgia, serif',
+  drawText(ctx, 'ALEMBIC RUSH — THE NIGHT MARKET', 640, 42, {
+    font: '18px Georgia, serif',
+    align: 'center',
+    color: PALETTE.creamDim,
+  });
+  drawText(ctx, `DAY ${state.day} COMPLETE`, 640, 100, {
+    font: '44px Georgia, serif',
     align: 'center',
     color: PALETTE.copperBright,
   });
-  drawText(
-    ctx,
-    `Served ${stats.served}   Walked out ${stats.lost}   Score ${state.score}   Coins ${state.coins}   Hearts ${heartsLine(state.hearts, 5)}`,
-    640,
-    160,
-    {
-      font: '22px Georgia, serif',
-      align: 'center',
-    },
-  );
   if (stats.perfect) {
-    drawText(ctx, `Perfect day! +${stats.perfectScore || 50} score, +10 coins.`, 640, 196, {
+    drawText(ctx, `Perfect day! +${stats.perfectScore || 50} score, +10 coins.`, 640, 132, {
       font: '20px Georgia, serif',
       align: 'center',
       color: PALETTE.ok,
     });
   }
-  // Kolom kiri: grid Ledger + roster regular (layar gabungan Fase 2).
-  drawText(ctx, `THE LEDGER ${ledgerCount(state.ledger)}/${LEDGER_SIZE}`, 40, 232, {
+  drawMarketStatsGrid(ctx, state, stats);
+  // Kolom kiri: daftar deck + relic aktif (layar market v3b). Grid
+  // Ledger + roster pindah ke hub.
+  drawText(ctx, 'DECK', 40, 232, {
     font: '22px Georgia, serif',
     color: PALETTE.copperBright,
   });
-  drawLedgerMiniGrid(ctx, state, 40, 246);
-  drawText(ctx, 'REGULARS', 40, 512, { font: '22px Georgia, serif', color: PALETTE.copperBright });
-  drawRegularsRoster(ctx, state, 40, 524, 400);
+  const deckEndY = drawDeckList(ctx, state, 40, 244);
+  drawText(ctx, 'RELICS', 40, deckEndY + 22, {
+    font: '22px Georgia, serif',
+    color: PALETTE.copperBright,
+  });
+  drawRelicRow(ctx, state, 40, deckEndY + 32);
   drawText(
     ctx,
     state.marketDayActive
@@ -607,22 +755,76 @@ function drawDayResult(ctx, state) {
       align: 'center',
       color: offer.price <= state.coins ? PALETTE.copperBright : PALETTE.danger,
     });
+    // Tag NEW DISCOVERY: tawaran relic yang belum tercatat di Ledger —
+    // membeli di sini membuka stok shop run berikutnya. Hanya relic.
+    if (offer.kind === 'relic' && state.ledger && !state.ledger.relics.includes(offer.id)) {
+      ctx.font = '16px Georgia, serif';
+      const tagW = ctx.measureText('NEW DISCOVERY').width + 20;
+      drawPanel(ctx, rect.x + (rect.w - tagW) / 2, rect.y + 216, tagW, 22, 11);
+      drawText(ctx, 'NEW DISCOVERY', rect.x + rect.w / 2, rect.y + 232, {
+        font: '16px Georgia, serif',
+        align: 'center',
+        color: PALETTE.copperBright,
+      });
+    }
   });
   drawButton(ctx, LAYOUT.continueButton, 'CONTINUE', { fill: '#6b4423' });
 }
 
+// Grid statistik win v3b: 5 sel sebaris di bawah huruf rank raksasa.
+function drawWinStatsGrid(ctx, state) {
+  const cells = [
+    { label: 'SCORE', value: String(state.score) },
+    { label: 'BEST', value: String(state.bestScore) },
+    { label: 'DAY', value: `${state.day}/10` },
+    { label: 'COINS', value: String(state.coins) },
+    { label: 'HEARTS', value: heartsLine(state.hearts, 5) },
+  ];
+  const cellW = 230;
+  const cellH = 54;
+  const gap = 12;
+  const y = 350;
+  cells.forEach((cell, i) => {
+    const x = 40 + i * (cellW + gap);
+    drawPanel(ctx, x, y, cellW, cellH, 8);
+    drawText(ctx, cell.label, x + cellW / 2, y + 21, {
+      font: '14px Georgia, serif',
+      align: 'center',
+      color: PALETTE.creamDim,
+    });
+    drawText(ctx, cell.value, x + cellW / 2, y + 45, {
+      font: '22px Georgia, serif',
+      align: 'center',
+    });
+  });
+}
+
 function drawWin(ctx, state) {
   clearScreen(ctx, 1280, 720);
-  drawText(ctx, 'YOU WIN', 640, 150, { font: '64px Georgia, serif', align: 'center', color: PALETTE.copperBright });
-  drawText(ctx, 'All 10 shifts served. The night market remembers your name.', 640, 200, {
+  drawText(ctx, 'ALEMBIC RUSH', 640, 42, {
+    font: '18px Georgia, serif',
+    align: 'center',
+    color: PALETTE.creamDim,
+  });
+  drawText(ctx, 'YOU WIN', 640, 108, { font: '56px Georgia, serif', align: 'center', color: PALETTE.copperBright });
+  drawText(ctx, 'All 10 shifts served. The night market remembers your name.', 640, 148, {
     font: '22px Georgia, serif',
     align: 'center',
   });
-  drawText(ctx, `Final score: ${state.score}`, 640, 300, { font: '28px Georgia, serif', align: 'center' });
-  drawText(ctx, `Rank: ${rankFor(state.score)}`, 640, 360, { font: '44px Georgia, serif', align: 'center' });
-  drawText(ctx, `Best score: ${state.bestScore}`, 640, 420, { font: '20px Georgia, serif', align: 'center', color: PALETTE.creamDim });
+  drawText(ctx, 'FINAL RANK', 640, 200, {
+    font: '20px Georgia, serif',
+    align: 'center',
+    color: PALETTE.creamDim,
+  });
+  drawText(ctx, rankFor(state.score), 640, 322, {
+    font: '130px Georgia, serif',
+    align: 'center',
+    color: PALETTE.copperBright,
+  });
+  drawWinStatsGrid(ctx, state);
   drawOrnamentRow(ctx, ELEMENTS, 640, 472, 14);
   drawButton(ctx, LAYOUT.playAgainButton, 'PLAY AGAIN', { fill: '#6b4423' });
+  drawButton(ctx, LAYOUT.hubButton, 'HUB', { fill: '#3a2a1c' });
   // Footer LEDGER UPDATED (Fase 2): apa yang run ini tambahkan ke Ledger.
   const newRelics = state.runNewRelics || [];
   const visits = state.runRegularVisits || 0;
